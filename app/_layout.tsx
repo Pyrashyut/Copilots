@@ -12,33 +12,37 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    // 1. Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setInitialized(true);
-    });
-
-    // 2. Listen for auth changes (login/logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
     if (!initialized) return;
 
-    // Check if user is in the (auth) group
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboardingGroup = segments[0] === 'onboarding';
 
-    if (session && inAuthGroup) {
-      // If logged in but on login page, send to home
-      router.replace('/(tabs)');
-    } else if (!session && !inAuthGroup) {
-      // If not logged in and not on login page, send to login
-      router.replace('/(auth)/login');
-    }
+    const checkUser = async () => {
+      if (session) {
+        // Check if onboarding is complete
+        const { data } = await supabase
+          .from('profiles')
+          .select('onboarding_complete')
+          .eq('id', session.user.id)
+          .single();
+
+        if (data?.onboarding_complete) {
+          // If complete, go to tabs (but not if already there)
+          if (inAuthGroup || inOnboardingGroup) {
+            router.replace('/(tabs)');
+          }
+        } else {
+          // If NOT complete, force them to onboarding
+          if (!inOnboardingGroup) {
+            router.replace('/onboarding/step1');
+          }
+        }
+      } else if (!session && !inAuthGroup) {
+        router.replace('/(auth)/login');
+      }
+    };
+
+    checkUser();
   }, [session, initialized, segments]);
 
   if (!initialized) {
