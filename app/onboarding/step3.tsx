@@ -29,8 +29,6 @@ export default function OnboardingStep3() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
-      // 1. Update Profile with preferences
-      // 2. Mark onboarding_complete = true
       const { error } = await supabase
         .from('profiles')
         .update({ 
@@ -43,9 +41,13 @@ export default function OnboardingStep3() {
         Alert.alert('Error', error.message);
         setLoading(false);
       } else {
-        // The Root Layout will detect this change and auto-redirect to (tabs)
-        // We just need to wait a moment or push manually
-        router.replace('/(tabs)');
+        // FIX: Force session refresh so RootLayout sees the new data
+        await supabase.auth.refreshSession(); 
+        
+        // Manual Delay to ensure state propagation
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 500);
       }
     }
   };

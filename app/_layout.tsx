@@ -14,25 +14,31 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
 
-  // 1. Handle Initialization (Session + Profile Fetch)
+  // Helper to fetch profile status
+  const checkOnboardingStatus = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('onboarding_complete')
+        .eq('id', userId)
+        .single();
+      return data?.onboarding_complete || false;
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
     setIsMounted(true);
 
     const initialize = async () => {
       try {
-        // Get Session
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
 
         if (session) {
-          // Get Profile Data
-          const { data } = await supabase
-            .from('profiles')
-            .select('onboarding_complete')
-            .eq('id', session.user.id)
-            .single();
-          
-          setOnboardingComplete(data?.onboarding_complete || false);
+          const isComplete = await checkOnboardingStatus(session.user.id);
+          setOnboardingComplete(isComplete);
         }
       } catch (e) {
         console.error("Init error:", e);
@@ -43,10 +49,14 @@ export default function RootLayout() {
 
     initialize();
 
-    // Listen for auth state changes
+    // LISTEN FOR CHANGES (This fixes the loop!)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
-      if (!session) {
+      if (session) {
+        // If session refreshes, check DB again to see if they finished onboarding
+        const isComplete = await checkOnboardingStatus(session.user.id);
+        setOnboardingComplete(isComplete);
+      } else {
         setOnboardingComplete(false);
       }
     });
@@ -54,33 +64,34 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. Handle Navigation (Only runs when data is fully loaded)
   useEffect(() => {
     if (!dataLoaded || !isMounted) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === 'onboarding';
-    const inTabsGroup = segments[0] === '(tabs)';
-
-    if (session && onboardingComplete) {
-      // User is ready for the app
-      if (inAuthGroup || inOnboardingGroup) {
-        router.replace('/(tabs)'); 
+    
+    // User is logged in
+    if (session) {
+      if (onboardingComplete) {
+        // User is DONE -> Go to Tabs
+        if (inAuthGroup || inOnboardingGroup) {
+          router.replace('/(tabs)'); 
+        }
+      } else {
+        // User is NOT DONE -> Go to Step 0 (Identity)
+        if (!inOnboardingGroup) {
+          router.replace('/onboarding/step0');
+        }
       }
-    } else if (session && !onboardingComplete) {
-      // User needs to finish onboarding
-      if (!inOnboardingGroup) {
-        router.replace('/onboarding/step1');
-      }
-    } else if (!session) {
-      // User is logged out
+    } 
+    // User is logged out
+    else {
       if (!inAuthGroup) {
         router.replace('/(auth)/login');
       }
     }
   }, [session, onboardingComplete, segments, dataLoaded, isMounted]);
 
-  // Show loading screen while we fetch data
   if (!dataLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary.navy }}>

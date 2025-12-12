@@ -9,6 +9,7 @@ export default function OnboardingLayout() {
       headerTitleStyle: { fontWeight: 'bold' },
       title: 'Setup Profile'
     }}>
+      <Stack.Screen name="step0" options={{ title: 'Identity' }} />
       <Stack.Screen name="step1" options={{ title: 'The Pilot License' }} />
       <Stack.Screen name="step2" options={{ title: 'Travel Style' }} />
       <Stack.Screen name="step3" options={{ title: 'Experience Matrix' }} />
