@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Image, 
+  Alert, 
+  ActivityIndicator, 
+  ScrollView,
+  Modal
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
-import { decode } from 'base-64';
 
 export default function OnboardingStep0() {
   const router = useRouter();
@@ -13,8 +24,11 @@ export default function OnboardingStep0() {
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  // State for Full Screen View
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // 1. Pick Multiple Images
+  // 1. Pick Multiple Images (FIXED - Using array of media types)
   const pickImages = async () => {
     if (images.length >= 5) {
       Alert.alert('Limit Reached', 'You have reached the 5 photo limit.');
@@ -22,15 +36,13 @@ export default function OnboardingStep0() {
     }
 
     try {
-      // We use MediaTypeOptions to fix the TS Error. 
-      // Ignore the "Deprecated" warning in terminal for now.
       let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-        allowsEditing: false, // Required false for multi-select
+        // FIX: Pass array of strings directly (new API)
+        mediaTypes: ['images'],
+        allowsEditing: false, 
         allowsMultipleSelection: true,
         selectionLimit: 5 - images.length,
         quality: 0.5,
-        base64: true,
       });
 
       if (!result.canceled) {
@@ -42,7 +54,7 @@ export default function OnboardingStep0() {
     }
   };
 
-  // 2. Upload Loop
+  // 2. Upload Loop (Fixed Gray Images using ArrayBuffer)
   const uploadMultipleImages = async (assets: ImagePicker.ImagePickerAsset[]) => {
     setUploading(true);
     const newUrls: string[] = [];
@@ -56,30 +68,41 @@ export default function OnboardingStep0() {
         const fileName = `${user.id}/${Date.now()}_${Math.random()}.${fileExt}`;
         
         console.log(`Uploading ${fileName}...`);
-        
-        // Decode
-        const arrayBuffer = decode(asset.base64!);
-        
-        // Upload
+        console.log(`Original URI: ${asset.uri}`);
+
+        // CRITICAL FIX: In React Native, we need to use ArrayBuffer, not Blob
+        // Fetch the image and convert to ArrayBuffer
+        const response = await fetch(asset.uri);
+        const arrayBuffer = await response.arrayBuffer();
+
+        // Upload the ArrayBuffer to Supabase
         const { error: uploadError } = await supabase.storage
           .from('user_photos')
-          .upload(fileName, arrayBuffer, { contentType: 'image/jpeg' });
+          .upload(fileName, arrayBuffer, { 
+            contentType: asset.mimeType || 'image/jpeg',
+            upsert: false
+          });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error(`Upload error for ${fileName}:`, uploadError);
+          throw uploadError;
+        }
 
-        // Get URL
+        // Get Public URL
         const { data: { publicUrl } } = supabase.storage
           .from('user_photos')
           .getPublicUrl(fileName);
 
+        console.log(`Successfully uploaded: ${publicUrl}`);
         newUrls.push(publicUrl);
       }
 
       setImages(prev => [...prev, ...newUrls]);
+      Alert.alert('Success', `${newUrls.length} photo(s) uploaded successfully!`);
 
     } catch (error: any) {
       console.error("Upload Error:", error);
-      Alert.alert('Upload Failed', 'Some photos could not be uploaded.');
+      Alert.alert('Upload Failed', error.message || 'Could not upload image.');
     } finally {
       setUploading(false);
     }
@@ -90,10 +113,8 @@ export default function OnboardingStep0() {
     setImages(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // 4. Save and Continue (With Debug Logs)
+  // 4. Save and Continue
   const nextStep = async () => {
-    console.log("--> Next button clicked.");
-
     if (!username.trim()) {
       Alert.alert('Missing Info', 'Please add a username.');
       return;
@@ -112,9 +133,6 @@ export default function OnboardingStep0() {
         return;
       }
 
-      console.log("--> Saving profile for user:", user.id);
-      console.log("--> Data:", { username: username.trim(), photosCount: images.length });
-
       const { error } = await supabase
         .from('profiles')
         .update({ 
@@ -124,18 +142,16 @@ export default function OnboardingStep0() {
         .eq('id', user.id);
 
       if (error) {
-        console.error("--> Supabase Error:", error);
         if (error.code === '23505') {
           Alert.alert('Username Taken', 'Please choose a different username.');
         } else {
           Alert.alert('Save Failed', error.message);
         }
       } else {
-        console.log("--> Save success! Navigating to step1...");
         router.push('/onboarding/step1');
       }
     } catch (e) {
-      console.error("--> Unexpected Catch Error:", e);
+      console.error("Error:", e);
     } finally {
       setSaving(false);
     }
@@ -160,7 +176,11 @@ export default function OnboardingStep0() {
       <View style={styles.photoGrid}>
         {images.map((img, index) => (
           <View key={index} style={styles.imageWrapper}>
-            <Image source={{ uri: img }} style={styles.thumb} />
+            {/* Click image to open modal */}
+            <TouchableOpacity onPress={() => setSelectedImage(img)}>
+              <Image source={{ uri: img }} style={styles.thumb} resizeMode="cover" />
+            </TouchableOpacity>
+            
             <TouchableOpacity style={styles.removeBtn} onPress={() => removeImage(index)}>
               <Ionicons name="close" size={16} color="white" />
             </TouchableOpacity>
@@ -181,6 +201,29 @@ export default function OnboardingStep0() {
           <Text style={styles.buttonText}>Next: Pilot License</Text>
         )}
       </TouchableOpacity>
+
+      {/* FULL SCREEN IMAGE MODAL */}
+      <Modal visible={!!selectedImage} transparent={true} animationType="fade">
+        <View style={styles.modalContainer}>
+          <SafeAreaView style={styles.modalSafeArea}>
+            <TouchableOpacity 
+              style={styles.closeModalBtn} 
+              onPress={() => setSelectedImage(null)}
+            >
+              <Ionicons name="close-circle" size={40} color="white" />
+            </TouchableOpacity>
+
+            {selectedImage && (
+              <Image 
+                source={{ uri: selectedImage }} 
+                style={styles.fullImage} 
+                resizeMode="contain" 
+              />
+            )}
+          </SafeAreaView>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 }
@@ -191,11 +234,37 @@ const styles = StyleSheet.create({
   subHeader: { fontSize: 14, color: Colors.neutral.grey, marginBottom: 20 },
   label: { fontSize: 16, fontWeight: '600', color: Colors.primary.navy, marginBottom: 8, marginTop: 10 },
   input: { backgroundColor: Colors.neutral.white, padding: 15, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', fontSize: 16 },
+  
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
   imageWrapper: { position: 'relative' },
   thumb: { width: 100, height: 125, borderRadius: 8, backgroundColor: '#ddd' },
-  removeBtn: { position: 'absolute', top: -5, right: -5, backgroundColor: 'red', borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'white' },
+  
+  removeBtn: { position: 'absolute', top: -5, right: -5, backgroundColor: 'red', borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'white', zIndex: 10 },
   addBtn: { width: 100, height: 125, borderRadius: 8, backgroundColor: Colors.primary.navy, justifyContent: 'center', alignItems: 'center' },
+  
   button: { marginTop: 40, backgroundColor: Colors.primary.coral, padding: 16, borderRadius: 8, alignItems: 'center', marginBottom: 50 },
   buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+
+  // MODAL STYLES
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalSafeArea: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  fullImage: {
+    width: '100%',
+    height: '80%',
+  },
+  closeModalBtn: {
+    position: 'absolute',
+    top: 50, // Adjusted down for dynamic island/notches
+    right: 20,
+    zIndex: 20,
+  },
 });
