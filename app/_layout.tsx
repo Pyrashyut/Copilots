@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments, usePathname } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { View, ActivityIndicator } from 'react-native';
@@ -8,7 +8,6 @@ import { Colors } from '../constants/Colors';
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   
   const segments = useSegments();
@@ -17,11 +16,17 @@ export default function RootLayout() {
   // Helper to fetch profile status
   const checkOnboardingStatus = async (userId: string) => {
     try {
-      const { data } = await supabase
+      console.log("Checking DB status for:", userId);
+      const { data, error } = await supabase
         .from('profiles')
         .select('onboarding_complete')
         .eq('id', userId)
         .single();
+      
+      if (error) {
+        console.error("Profile check error:", error);
+        return false;
+      }
       return data?.onboarding_complete || false;
     } catch {
       return false;
@@ -29,33 +34,44 @@ export default function RootLayout() {
   };
 
   useEffect(() => {
-    setIsMounted(true);
-
     const initialize = async () => {
       try {
+        console.log("1. App Initializing...");
+        
+        // 1. Get Session
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
 
+        // 2. If User, Check Profile
         if (session) {
+          console.log("2. User found, checking profile...");
           const isComplete = await checkOnboardingStatus(session.user.id);
           setOnboardingComplete(isComplete);
+        } else {
+          console.log("2. No user found.");
         }
       } catch (e) {
         console.error("Init error:", e);
       } finally {
+        // 3. CRITICAL: Always finish loading!
+        console.log("3. Data Load Complete.");
         setDataLoaded(true);
       }
     };
 
     initialize();
 
-    // LISTEN FOR CHANGES (This fixes the loop!)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Listen for Auth Changes (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth Event:", event);
       setSession(session);
+      
       if (session) {
-        // If session refreshes, check DB again to see if they finished onboarding
-        const isComplete = await checkOnboardingStatus(session.user.id);
-        setOnboardingComplete(isComplete);
+        // If we just logged in, checking profile might take a moment
+        // We don't block the UI here, just update state when ready
+        checkOnboardingStatus(session.user.id).then(isComplete => {
+          setOnboardingComplete(isComplete);
+        });
       } else {
         setOnboardingComplete(false);
       }
@@ -64,33 +80,48 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // NAVIGATION PROTECTION LOGIC
   useEffect(() => {
-    if (!dataLoaded || !isMounted) return;
+    if (!dataLoaded) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === 'onboarding';
-    
-    // User is logged in
-    if (session) {
-      if (onboardingComplete) {
-        // User is DONE -> Go to Tabs
-        if (inAuthGroup || inOnboardingGroup) {
-          router.replace('/(tabs)'); 
+    const inTabsGroup = segments[0] === '(tabs)';
+
+    const protectRoute = async () => {
+      if (session) {
+        // If we think we are incomplete, but trying to go to tabs, DOUBLE CHECK
+        if (!onboardingComplete && inTabsGroup) {
+           console.log("Double checking onboarding status...");
+           const recheck = await checkOnboardingStatus(session.user.id);
+           if (recheck) {
+             setOnboardingComplete(true);
+             return; 
+           }
+        }
+
+        if (onboardingComplete) {
+          // If done, kick out of onboarding/login
+          if (inAuthGroup || inOnboardingGroup) {
+            router.replace('/(tabs)'); 
+          }
+        } else {
+          // If not done, kick out of tabs
+          if (!inOnboardingGroup) {
+            router.replace('/onboarding/step0');
+          }
         }
       } else {
-        // User is NOT DONE -> Go to Step 0 (Identity)
-        if (!inOnboardingGroup) {
-          router.replace('/onboarding/step0');
+        // Not logged in
+        if (!inAuthGroup) {
+          router.replace('/(auth)/login');
         }
       }
-    } 
-    // User is logged out
-    else {
-      if (!inAuthGroup) {
-        router.replace('/(auth)/login');
-      }
-    }
-  }, [session, onboardingComplete, segments, dataLoaded, isMounted]);
+    };
+
+    protectRoute();
+    
+  }, [session, onboardingComplete, segments, dataLoaded]);
 
   if (!dataLoaded) {
     return (

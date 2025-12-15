@@ -26,9 +26,12 @@ export default function OnboardingStep3() {
 
   const finishOnboarding = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (user) {
+      if (!user) throw new Error("No user found");
+
+      console.log("Updating profile...");
       const { error } = await supabase
         .from('profiles')
         .update({ 
@@ -37,18 +40,24 @@ export default function OnboardingStep3() {
         })
         .eq('id', user.id);
 
-      if (error) {
-        Alert.alert('Error', error.message);
-        setLoading(false);
-      } else {
-        // FIX: Force session refresh so RootLayout sees the new data
-        await supabase.auth.refreshSession(); 
-        
-        // Manual Delay to ensure state propagation
-        setTimeout(() => {
-          router.replace('/(tabs)');
-        }, 500);
-      }
+      if (error) throw error;
+
+      console.log("Profile updated. Refreshing session...");
+      
+      // 1. Refresh Session (Triggers Layout listener)
+      await supabase.auth.refreshSession();
+
+      // 2. Explicitly tell user and navigate
+      // We use replace to force a URL change which triggers the new Layout logic
+      console.log("Navigating to tabs...");
+      router.replace('/(tabs)');
+
+    } catch (error: any) {
+      console.error("Step 3 Error:", error);
+      Alert.alert('Error', error.message);
+    } finally {
+      
+      setLoading(false);
     }
   };
 
