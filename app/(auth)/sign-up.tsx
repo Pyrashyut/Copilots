@@ -1,8 +1,11 @@
+// app/(auth)/sign-up.tsx
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SignUp() {
   const router = useRouter();
@@ -10,6 +13,7 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function signUpWithEmail() {
     setLoading(true);
@@ -24,102 +28,214 @@ export default function SignUp() {
     });
 
     if (error) {
-      Alert.alert(error.message);
+      Alert.alert('Sign Up Failed', error.message);
       setLoading(false);
     } else {
-      Alert.alert('Success', 'Check your inbox for email verification!');
+      Alert.alert('Success! 🎉', 'Check your inbox for email verification!', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
       setLoading(false);
-      router.back(); // Go back to login
     }
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Join the Fleet</Text>
-      
-      <TextInput
-        style={styles.input}
-        onChangeText={setFullName}
-        value={fullName}
-        placeholder="Full Name"
-        placeholderTextColor="#ccc"
-      />
-      <TextInput
-        style={styles.input}
-        onChangeText={setEmail}
-        value={email}
-        placeholder="Email"
-        placeholderTextColor="#ccc"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        onChangeText={setPassword}
-        value={password}
-        placeholder="Password"
-        placeholderTextColor="#ccc"
-        secureTextEntry={true}
-        autoCapitalize="none"
-      />
-
-      <TouchableOpacity 
-        style={styles.button} 
-        onPress={signUpWithEmail} 
-        disabled={loading}
+    <LinearGradient
+      colors={Colors.gradient.ocean}
+      style={styles.gradient}
+    >
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
       >
-        {loading ? (
-          <ActivityIndicator color={Colors.primary.navy} />
-        ) : (
-          <Text style={styles.buttonText}>Create Account</Text>
-        )}
-      </TouchableOpacity>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
+          </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.back()} style={styles.linkButton}>
-        <Text style={styles.linkText}>Already have an account? Sign In</Text>
-      </TouchableOpacity>
-    </View>
+          <View style={styles.headerContainer}>
+            <Text style={styles.header}>Join the Fleet</Text>
+            <Text style={styles.subheader}>Start your adventure with fellow travelers</Text>
+          </View>
+
+          <View style={styles.formContainer}>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={20} color={Colors.neutral.greyLight} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                onChangeText={setFullName}
+                value={fullName}
+                placeholder="Full Name"
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+              />
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={20} color={Colors.neutral.greyLight} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                onChangeText={setEmail}
+                value={email}
+                placeholder="Email address"
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <Ionicons name="lock-closed-outline" size={20} color={Colors.neutral.greyLight} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                onChangeText={setPassword}
+                value={password}
+                placeholder="Password (min 6 characters)"
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity 
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                  size={20} 
+                  color={Colors.neutral.greyLight} 
+                />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.button} 
+              onPress={signUpWithEmail} 
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <View style={styles.buttonContent}>
+                {loading ? (
+                  <ActivityIndicator color={Colors.primary.navy} />
+                ) : (
+                  <>
+                    <Text style={styles.buttonText}>Create Account</Text>
+                    <Ionicons name="arrow-forward" size={20} color={Colors.primary.navy} />
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => router.back()} style={styles.linkButton}>
+              <Text style={styles.linkText}>
+                Already have an account? <Text style={styles.linkTextBold}>Sign In</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 24,
+    paddingTop: 60,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
-    padding: 20,
-    backgroundColor: Colors.primary.navy,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  headerContainer: {
+    marginBottom: 40,
   },
   header: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 36,
+    fontWeight: '800',
     color: Colors.neutral.white,
-    marginBottom: 40,
-    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subheader: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 24,
+  },
+  formContainer: {
+    width: '100%',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 16,
+  },
+  inputIcon: {
+    marginRight: 12,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 15,
-    color: 'white',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    flex: 1,
+    color: Colors.neutral.white,
+    fontSize: 16,
+    paddingVertical: 16,
+  },
+  eyeIcon: {
+    padding: 8,
   },
   button: {
-    backgroundColor: Colors.primary.coral,
-    padding: 15,
-    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 24,
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  buttonContent: {
+    paddingVertical: 18,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
+    gap: 8,
   },
   buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    color: Colors.primary.navy,
+    fontWeight: '700',
+    fontSize: 17,
   },
   linkButton: {
     alignItems: 'center',
+    paddingVertical: 12,
   },
   linkText: {
-    color: Colors.neutral.trailDust,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 15,
+  },
+  linkTextBold: {
+    color: Colors.neutral.white,
+    fontWeight: '600',
   },
 });

@@ -1,3 +1,4 @@
+// app/trip/selection.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,101 +9,161 @@ import { LinearGradient } from 'expo-linear-gradient';
 const TIERS = [
   {
     id: 'local',
-    name: 'Local',
+    name: 'Local Explorer',
     price: '£50 - £150',
-    tag: 'First Date, Elevated',
-    desc: 'Curated local experiences. 4-8 hours. Perfect for the cautious.',
-    color: ['#4FACFE', '#00F2FE'],
+    tag: 'First Date Vibes',
+    desc: 'Curated local experiences perfect for getting to know each other. 4-8 hours of adventure.',
+    icon: 'cafe',
+    color: ['#4FACFE', '#00F2FE'] as const,
+    features: ['4-8 hours', 'Local spots', 'Low commitment'],
   },
   {
     id: 'national',
-    name: 'National',
+    name: 'Weekend Escape',
     price: '£200 - £800',
-    tag: 'Weekend Wanderers',
-    desc: '2-3 day trips within the country. Boutique stays & unique vibes.',
-    color: ['#43E97B', '#38F9D7'],
+    tag: 'Mini Adventure',
+    desc: '2-3 day trips exploring your country. Boutique stays and unique experiences await.',
+    icon: 'car',
+    color: ['#6BCF7F', '#38D98D'] as const,
+    features: ['2-3 days', 'Domestic travel', 'Boutique stays'],
   },
   {
     id: 'international',
-    name: 'International',
+    name: 'International Journey',
     price: '£800 - £2,000',
     tag: 'Passport Required',
-    desc: '4-7 days. Full itinerary, flights, and accommodation included.',
-    color: ['#FA709A', '#FEE140'],
+    desc: '4-7 days exploring a new country together. Full itinerary with flights and accommodation.',
+    icon: 'airplane',
+    color: ['#FA709A', '#FEE140'] as const,
+    features: ['4-7 days', 'Flights included', 'Full itinerary'],
   },
   {
     id: 'exotic',
-    name: 'Exotic',
+    name: 'Exotic Adventure',
     price: '£2,000+',
-    tag: 'Once in a Lifetime',
-    desc: '7-14 days. Bucket-list destinations. Premium everything.',
-    color: ['#667EEA', '#764BA2'],
+    tag: 'Bucket List Dream',
+    desc: '7-14 days in paradise. Premium everything for once-in-a-lifetime memories.',
+    icon: 'beach',
+    color: ['#667EEA', '#764BA2'] as const,
+    features: ['7-14 days', 'Premium luxury', 'Unforgettable'],
   }
-];
+] as const;
 
 export default function TripSelection() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
 
-  const handleSelect = (tierId: string) => {
+  const handleSelect = (tierId: string, tierName: string, price: string) => {
     setSelected(tierId);
     Alert.alert(
-      "Tier Selected",
-      "In the real app, this would trigger the Booking Fee flow to unlock the 5-minute chat bridge.",
+      "Adventure Selected! ✈️",
+      `You've chosen the ${tierName} tier (${price}).\n\nIn the full app, this will unlock a 5-minute chat to coordinate your trip!`,
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Pay Booking Fee", onPress: () => console.log("Unlock Chat") }
+        { text: "Maybe Later", style: "cancel", onPress: () => setSelected(null) },
+        { 
+          text: "Unlock Chat", 
+          style: "default",
+          onPress: () => {
+            Alert.alert("Coming Soon!", "Payment processing will be added in the next version.");
+            setSelected(null);
+          }
+        }
       ]
     );
   };
 
   return (
     <View style={styles.mainContainer}>
-      {/* Custom Header */}
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="white" />
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={styles.backButton}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Plan with {params.name}</Text>
-          <View style={{ width: 24 }} /> {/* Spacer for centering */}
+          <View style={styles.headerContent}>
+            <Text style={styles.headerSubtitle}>Plan with</Text>
+            <Text style={styles.headerTitle}>{params.name}</Text>
+          </View>
+          <View style={{ width: 44 }} />
         </View>
       </SafeAreaView>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.pageTitle}>Choose Your Adventure</Text>
-        <Text style={styles.subHeader}>
-          Select a tier to unlock the connection. The booking fee is split between you.
-        </Text>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.introSection}>
+          <Text style={styles.pageTitle}>Choose Your Adventure</Text>
+          <Text style={styles.subHeader}>
+            Select a tier to unlock your connection. The booking fee is split equally between you both.
+          </Text>
+        </View>
 
         <View style={styles.grid}>
-          {TIERS.map((tier) => (
+          {TIERS.map((tier, index) => (
             <TouchableOpacity 
               key={tier.id} 
-              activeOpacity={0.9}
-              onPress={() => handleSelect(tier.id)}
+              activeOpacity={0.95}
+              onPress={() => handleSelect(tier.id, tier.name, tier.price)}
+              style={[
+                styles.cardWrapper,
+                selected === tier.id && styles.selectedCard,
+              ]}
             >
               <LinearGradient
-                colors={tier.color as any}
+                colors={tier.color}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.card}
               >
+                {/* Icon Badge */}
+                <View style={styles.iconBadge}>
+                  <Ionicons name={tier.icon as any} size={24} color={Colors.neutral.white} />
+                </View>
+
+                {/* Header */}
                 <View style={styles.cardHeader}>
-                  <Text style={styles.tierName}>{tier.name}</Text>
+                  <View>
+                    <Text style={styles.tierName}>{tier.name}</Text>
+                    <Text style={styles.tag}>{tier.tag}</Text>
+                  </View>
                   <Text style={styles.price}>{tier.price}</Text>
                 </View>
-                <Text style={styles.tag}>{tier.tag}</Text>
+
+                {/* Description */}
                 <Text style={styles.desc}>{tier.desc}</Text>
-                
-                <View style={styles.button}>
-                  <Text style={styles.btnText}>Select</Text>
+
+                {/* Features */}
+                <View style={styles.features}>
+                  {tier.features.map((feature, idx) => (
+                    <View key={idx} style={styles.featureRow}>
+                      <Ionicons name="checkmark-circle" size={16} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.featureText}>{feature}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Select Button */}
+                <View style={styles.selectButton}>
+                  <Text style={styles.btnText}>Select Adventure</Text>
                   <Ionicons name="arrow-forward" color={Colors.primary.navy} size={18} />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* Bottom Info */}
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle" size={24} color={Colors.secondary.teal} />
+          <Text style={styles.infoText}>
+            After selecting a tier, you'll unlock a 5-minute chat window to coordinate details before committing.
+          </Text>
         </View>
       </ScrollView>
     </View>
@@ -122,17 +183,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    paddingVertical: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     backgroundColor: Colors.primary.navy,
   },
   backButton: {
-    padding: 5,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerContent: {
+    alignItems: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.neutral.white,
   },
   scrollView: {
     flex: 1,
@@ -141,75 +215,129 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
+  introSection: {
+    marginBottom: 24,
+  },
   pageTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '800',
     color: Colors.primary.navy,
-    marginTop: 10,
+    marginBottom: 8,
   },
   subHeader: {
     fontSize: 15,
     color: Colors.neutral.grey,
-    marginTop: 5,
-    marginBottom: 20,
     lineHeight: 22,
   },
   grid: {
-    gap: 15,
+    gap: 16,
+  },
+  cardWrapper: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  selectedCard: {
+    transform: [{ scale: 0.98 }],
   },
   card: {
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
-    minHeight: 160,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
+    minHeight: 240,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  iconBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    paddingRight: 56,
   },
   tierName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  price: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
-    opacity: 0.9,
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.neutral.white,
+    marginBottom: 4,
   },
   tag: {
-    fontSize: 14,
-    color: 'white',
-    fontStyle: 'italic',
-    marginBottom: 10,
-    opacity: 0.9,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '600',
+  },
+  price: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.neutral.white,
   },
   desc: {
     fontSize: 14,
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.95)',
     lineHeight: 20,
-    marginBottom: 15,
+    marginBottom: 16,
   },
-  button: {
-    backgroundColor: 'white',
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+  features: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 8,
+  },
+  featureText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
+  selectButton: {
+    backgroundColor: Colors.neutral.white,
+    alignSelf: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   btnText: {
     color: Colors.primary.navy,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: Colors.neutral.white,
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.secondary.teal,
+  },
+  infoText: {
+    flex: 1,
     fontSize: 14,
-  }
+    color: Colors.neutral.greyDark,
+    lineHeight: 20,
+  },
 });

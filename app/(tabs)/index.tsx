@@ -1,9 +1,11 @@
+// app/(tabs)/index.tsx
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/Colors';
 import SwipeCard from '../../components/SwipeCard';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function DiscoverScreen() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -19,21 +21,19 @@ export default function DiscoverScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Get IDs of people I already swiped on
       const { data: swipes } = await supabase
         .from('swipes')
         .select('likee_id')
         .eq('liker_id', user.id);
 
       const swipedIds = swipes?.map(s => s.likee_id) || [];
-      swipedIds.push(user.id); // Exclude myself
+      swipedIds.push(user.id);
 
-      // 2. Fetch profiles NOT in that list
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .not('id', 'in', `(${swipedIds.join(',')})`)
-        .limit(10); // Load 10 at a time
+        .limit(10);
 
       if (error) throw error;
       setProfiles(data || []);
@@ -50,21 +50,18 @@ export default function DiscoverScreen() {
     const currentProfile = profiles[currentIndex];
     const isLike = direction === 'right';
 
-    // 1. Optimistic UI update (move to next card immediately)
     setCurrentIndex(prev => prev + 1);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 2. Record Swipe in DB
       await supabase.from('swipes').insert({
         liker_id: user.id,
         likee_id: currentProfile.id,
         is_like: isLike
       });
 
-      // 3. Check for Match (Only if it was a Like)
       if (isLike) {
         const { data: isMatch } = await supabase
           .rpc('check_match', { 
@@ -73,11 +70,13 @@ export default function DiscoverScreen() {
           });
 
         if (isMatch) {
-          Alert.alert("IT'S A MATCH!", "Pack your bags!");
-          // TODO: Add to matches table logic later
+          Alert.alert(
+            "✈️ IT'S A MATCH!", 
+            `You and ${currentProfile.username} both want to explore together!`,
+            [{ text: 'Amazing!', style: 'default' }]
+          );
         }
       }
-
     } catch (error) {
       console.error(error);
     }
@@ -85,105 +84,231 @@ export default function DiscoverScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.center}>
         <ActivityIndicator size="large" color={Colors.primary.navy} />
-      </View>
+        <Text style={styles.loadingText}>Finding your copilots...</Text>
+      </LinearGradient>
     );
   }
 
   if (currentIndex >= profiles.length) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.emptyText}>No more pilots in your area.</Text>
-        <TouchableOpacity onPress={() => { setLoading(true); fetchProfiles(); setCurrentIndex(0); }} style={styles.refreshBtn}>
-          <Text style={styles.refreshText}>Refresh Radar</Text>
-        </TouchableOpacity>
-      </View>
+      <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.center}>
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="airplane" size={48} color={Colors.primary.navy} />
+          </View>
+          <Text style={styles.emptyTitle}>No More Pilots</Text>
+          <Text style={styles.emptyText}>You've seen everyone in your area.{'\n'}Check back soon for new travelers!</Text>
+          <TouchableOpacity 
+            onPress={() => { 
+              setLoading(true); 
+              fetchProfiles(); 
+              setCurrentIndex(0); 
+            }} 
+            style={styles.refreshBtn}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={Colors.gradient.sunset}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.refreshGradient}
+            >
+              <Ionicons name="refresh" size={20} color={Colors.neutral.white} />
+              <Text style={styles.refreshText}>Refresh Radar</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Discover</Text>
+        <View style={styles.profileCounter}>
+          <Text style={styles.counterText}>{profiles.length - currentIndex}</Text>
+        </View>
+      </View>
+
+      {/* Card Container */}
       <View style={styles.cardContainer}>
         <SwipeCard profile={profiles[currentIndex]} />
       </View>
 
+      {/* Action Buttons */}
       <View style={styles.buttonRow}>
         <TouchableOpacity 
-          style={[styles.roundButton, styles.passButton]} 
+          style={[styles.actionButton, styles.passButton]} 
           onPress={() => handleSwipe('left')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="close" size={30} color="#FF4D4D" />
+          <LinearGradient
+            colors={['#FFFFFF', '#F8F9FA']}
+            style={styles.buttonGradient}
+          >
+            <Ionicons name="close" size={32} color={Colors.highlight.error} />
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.roundButton, styles.likeButton]} 
+          style={[styles.actionButton, styles.superLikeButton]} 
           onPress={() => handleSwipe('right')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="heart" size={30} color="#2ECC71" />
+          <LinearGradient
+            colors={Colors.gradient.sunset}
+            style={styles.buttonGradient}
+          >
+            <Ionicons name="star" size={28} color={Colors.neutral.white} />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.likeButton]} 
+          onPress={() => handleSwipe('right')}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={['#6BCF7F', '#51B96F']}
+            style={styles.buttonGradient}
+          >
+            <Ionicons name="heart" size={32} color={Colors.neutral.white} />
+          </LinearGradient>
         </TouchableOpacity>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutral.trailDust,
-    alignItems: 'center',
     paddingTop: 60,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.neutral.trailDust,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: Colors.neutral.grey,
+    fontWeight: '500',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: Colors.primary.navy,
+  },
+  profileCounter: {
+    backgroundColor: Colors.primary.navy,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  counterText: {
+    color: Colors.neutral.white,
+    fontWeight: '700',
+    fontSize: 16,
   },
   cardContainer: {
-    flex: 0.8,
+    flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    width: '80%',
-    marginTop: 30,
-  },
-  roundButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: "#000",
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  actionButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    overflow: 'hidden',
+    shadowColor: Colors.shadow.heavy,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  passButton: {
-    borderWidth: 1,
-    borderColor: '#FF4D4D',
+  superLikeButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
-  likeButton: {
-    borderWidth: 1,
-    borderColor: '#2ECC71',
-    backgroundColor: '#E8F8F5'
+  buttonGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  passButton: {},
+  likeButton: {},
+  emptyContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.neutral.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: Colors.shadow.light,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  emptyTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.primary.navy,
+    marginBottom: 12,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 16,
     color: Colors.neutral.grey,
-    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
   },
   refreshBtn: {
-    padding: 15,
-    backgroundColor: Colors.primary.navy,
-    borderRadius: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  refreshGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    gap: 8,
   },
   refreshText: {
-    color: 'white',
-    fontWeight: 'bold',
-  }
+    color: Colors.neutral.white,
+    fontWeight: '700',
+    fontSize: 17,
+  },
 });

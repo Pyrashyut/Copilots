@@ -1,6 +1,8 @@
+// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
-import { FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
   return (
@@ -8,21 +10,27 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary.navy,
-        tabBarInactiveTintColor: Colors.neutral.grey,
+        tabBarInactiveTintColor: Colors.neutral.greyLight,
         tabBarStyle: {
+          backgroundColor: Colors.neutral.white,
           borderTopWidth: 0,
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
+          elevation: 20,
+          shadowColor: Colors.shadow.medium,
+          shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.1,
-          shadowRadius: 4,
-          height: 90, // Taller tab bar for modern look
-          paddingBottom: 30,
+          shadowRadius: 12,
+          height: Platform.OS === 'ios' ? 88 : 70,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          paddingTop: 12,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '600',
-          marginTop: -5,
+          marginTop: 4,
+          letterSpacing: 0.3,
+        },
+        tabBarIconStyle: {
+          marginTop: 4,
         }
       }}
     >
@@ -30,21 +38,39 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Discover',
-          tabBarIcon: ({ color }) => <FontAwesome5 name="globe-americas" size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "compass" : "compass-outline"} 
+              size={28} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="matches"
         options={{
           title: 'Copilots',
-          tabBarIcon: ({ color }) => <FontAwesome5 name="user-friends" size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "people" : "people-outline"} 
+              size={28} 
+              color={color} 
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "person" : "person-outline"} 
+              size={28} 
+              color={color} 
+            />
+          ),
         }}
       />
     </Tabs>
