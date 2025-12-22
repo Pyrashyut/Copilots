@@ -146,7 +146,7 @@ export default function TripSelection() {
 
   if (loading) return <ActivityIndicator style={{flex:1, marginTop: 50}} color={Colors.primary.navy} />;
 
-  // SCENARIO 1: Booking Exists
+  // SCENARIO 1: Booking Exists 
   if (booking) {
     const isMyInvite = booking.invited_by === currentUser.id;
     const tier = TIERS.find(t => t.id === booking.tier_id);
