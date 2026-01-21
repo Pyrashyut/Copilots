@@ -1,9 +1,9 @@
 // components/SwipeCard.tsx
-import React from 'react';
-import { View, Text, StyleSheet, Image, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React from 'react';
+import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
+import { Colors } from '../constants/Colors';
 
 const { width, height } = Dimensions.get('window');
 
@@ -91,7 +91,7 @@ export default function SwipeCard({ profile }: { profile: Profile }) {
 const styles = StyleSheet.create({
   card: {
     width: width * 0.9,
-    height: height * 0.68,
+    height: height * 0.64,
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: Colors.neutral.white,

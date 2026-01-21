@@ -63,29 +63,43 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
+      <LinearGradient 
+        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]} 
+        locations={[0, 0.5, 1]}
+        style={styles.center}
+      >
+        <Text style={styles.loadingText}>Loading profile...</Text>
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
+    <LinearGradient 
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.container}
+    >
+      {/* Decorative Background Elements */}
+      <View style={styles.bgDecoration1} />
+      <View style={styles.bgDecoration2} />
+
       <ScrollView 
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
+          <View>
+            <Text style={styles.headerTitle}>Profile</Text>
+            <Text style={styles.headerSubtitle}>Your journey profile</Text>
+          </View>
           <TouchableOpacity 
             style={styles.settingsButton}
             onPress={handleSettings}
             activeOpacity={0.8}
           >
-            <Ionicons name="settings-outline" size={24} color={Colors.primary.navy} />
+            <Ionicons name="settings-outline" size={22} color={Colors.neutral.white} />
           </TouchableOpacity>
         </View>
 
@@ -182,7 +196,7 @@ export default function ProfileScreen() {
             )}
             
             {profile?.age && (
-              <View style={styles.detailRow}>
+              <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
                 <View style={styles.detailIconCircle}>
                   <Ionicons name="calendar" size={16} color={Colors.primary.navy} />
                 </View>
@@ -198,7 +212,7 @@ export default function ProfileScreen() {
         {/* Incomplete Profile Notice */}
         {(!profile?.bio || !profile?.job_title || !profile?.location) && (
           <View style={styles.noticeCard}>
-            <Ionicons name="information-circle" size={24} color={Colors.highlight.warning} />
+            <Ionicons name="information-circle" size={24} color={Colors.highlight.gold} />
             <Text style={styles.noticeText}>
               Complete your profile to get better matches!
             </Text>
@@ -238,10 +252,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-  },
+  container: { flex: 1 },
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -249,10 +260,35 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: Colors.neutral.grey,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  
+  // Background Decorations
+  bgDecoration1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+  },
+  bgDecoration2: {
+    position: 'absolute',
+    bottom: 100,
+    left: -150,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+  
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
+    paddingTop: 70,
     paddingBottom: 40,
   },
   header: {
@@ -262,22 +298,25 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
   settingsButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   profileCard: {
     backgroundColor: Colors.neutral.white,
@@ -285,11 +324,11 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
   avatarSection: {
     position: 'relative',
@@ -358,10 +397,10 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   statIconCircle: {
     width: 40,
@@ -386,20 +425,22 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
     marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   sectionCard: {
     backgroundColor: Colors.neutral.white,
     borderRadius: 16,
     padding: 16,
     shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   bioText: {
     fontSize: 15,
@@ -438,18 +479,18 @@ const styles = StyleSheet.create({
   noticeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 165, 2, 0.1)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 217, 61, 0.15)',
+    borderRadius: 16,
     padding: 16,
     gap: 12,
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 165, 2, 0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 217, 61, 0.3)',
   },
   noticeText: {
     flex: 1,
     fontSize: 14,
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
     fontWeight: '600',
   },
   actionButtons: {
@@ -462,14 +503,12 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.neutral.white,
     paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.primary.navy,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 16,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
   editButtonText: {
     fontSize: 16,
@@ -477,13 +516,13 @@ const styles = StyleSheet.create({
     color: Colors.primary.navy,
   },
   logoutButton: {
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: Colors.shadow.medium,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 12,
+    elevation: 5,
   },
   logoutGradient: {
     flexDirection: 'row',

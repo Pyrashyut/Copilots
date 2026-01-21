@@ -3,7 +3,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
 import SwipeCard from '../../components/SwipeCard';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
@@ -38,11 +47,12 @@ export default function DiscoverScreen() {
         .select('blocker_id')
         .eq('blocked_id', user.id);
 
-      const swipedIds = swipes?.map(s => s.likee_id) || [];
-      const blockedByMeIds = blockedByMe?.map(b => b.blocked_id) || [];
-      const blockedMeIds = blockedMe?.map(b => b.blocker_id) || [];
-      
-      const excludeIds = [...new Set([...swipedIds, ...blockedByMeIds, ...blockedMeIds, user.id])];
+      const excludeIds = [
+        ...(swipes?.map(s => s.likee_id) || []),
+        ...(blockedByMe?.map(b => b.blocked_id) || []),
+        ...(blockedMe?.map(b => b.blocker_id) || []),
+        user.id,
+      ];
 
       const { data, error } = await supabase
         .from('profiles')
@@ -53,20 +63,20 @@ export default function DiscoverScreen() {
 
       if (error) throw error;
       setProfiles(data || []);
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleSwipe = async (direction: 'left' | 'right') => {
-    if (profiles.length === 0 || currentIndex >= profiles.length) return;
+    if (currentIndex >= profiles.length) return;
 
-    const currentProfile = profiles[currentIndex];
+    const profile = profiles[currentIndex];
     const isLike = direction === 'right';
 
-    setCurrentIndex(prev => prev + 1);
+    setCurrentIndex(i => i + 1);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -74,40 +84,43 @@ export default function DiscoverScreen() {
 
       await supabase.from('swipes').insert({
         liker_id: user.id,
-        likee_id: currentProfile.id,
-        is_like: isLike
+        likee_id: profile.id,
+        is_like: isLike,
       });
 
       if (isLike) {
-        const { data: isMatch } = await supabase
-          .rpc('check_match', { 
-            current_user_id: user.id, 
-            target_user_id: currentProfile.id 
-          });
+        const { data: isMatch } = await supabase.rpc('check_match', {
+          current_user_id: user.id,
+          target_user_id: profile.id,
+        });
 
         if (isMatch) {
           Alert.alert(
-            "✈️ IT'S A MATCH!", 
-            `You and ${currentProfile.username} both want to explore together!`,
-            [{ text: 'Amazing!', style: 'default' }]
+            "✈️ IT'S A MATCH!",
+            `You and ${profile.username} both want to explore together!`
           );
         }
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const viewProfile = () => {
-    if (profiles.length === 0 || currentIndex >= profiles.length) return;
-    const currentProfile = profiles[currentIndex];
-    router.push({ pathname: '/profile/view', params: { userId: currentProfile.id } });
+    if (currentIndex >= profiles.length) return;
+    router.push({
+      pathname: '/profile/view',
+      params: { userId: profiles[currentIndex].id },
+    });
   };
 
   if (loading) {
     return (
-      <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary.navy} />
+      <LinearGradient
+        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
+        style={styles.center}
+      >
+        <ActivityIndicator size="large" color={Colors.highlight.gold} />
         <Text style={styles.loadingText}>Finding your copilots...</Text>
       </LinearGradient>
     );
@@ -115,276 +128,168 @@ export default function DiscoverScreen() {
 
   if (currentIndex >= profiles.length) {
     return (
-      <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.center}>
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="airplane" size={48} color={Colors.primary.navy} />
-          </View>
-          <Text style={styles.emptyTitle}>No More Pilots</Text>
-          <Text style={styles.emptyText}>You've seen everyone in your area.{'\n'}Check back soon for new travelers!</Text>
-          <TouchableOpacity 
-            onPress={() => { 
-              setLoading(true); 
-              fetchProfiles(); 
-              setCurrentIndex(0); 
-            }} 
-            style={styles.refreshBtn}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={Colors.gradient.sunset}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.refreshGradient}
-            >
-              <Ionicons name="refresh" size={20} color={Colors.neutral.white} />
-              <Text style={styles.refreshText}>Refresh Radar</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+      <LinearGradient
+        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
+        style={styles.center}
+      >
+        <Text style={styles.emptyTitle}>No More Pilots</Text>
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
-      {/* Logo Header */}
-      <View style={styles.logoHeader}>
-        <Image 
-          source={require('../../assets/images/logo.png')} 
-          style={styles.logoImage}
+    <LinearGradient
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.container}
+    >
+      {/* ===== FIXED HEADER ===== */}
+      <View style={styles.header}>
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.logo}
           resizeMode="contain"
         />
-      </View>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Discover</Text>
-        <View style={styles.profileCounter}>
-          <Text style={styles.counterText}>{profiles.length - currentIndex}</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.headerTitle}>Discover</Text>
+          <Text style={styles.headerSubtitle}>Find your travel companion</Text>
+        </View>
+
+        <View style={styles.counter}>
+          <Ionicons name="people" size={16} color={Colors.neutral.white} />
+          <Text style={styles.counterText}>
+            {profiles.length - currentIndex}
+          </Text>
         </View>
       </View>
 
-      {/* Card Container */}
-      <View style={styles.cardContainer}>
+      {/* ===== CARD AREA ===== */}
+      <View style={styles.cardArea}>
         <SwipeCard profile={profiles[currentIndex]} />
-        
-        <TouchableOpacity 
-          style={styles.viewProfileBtn}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
           onPress={viewProfile}
-          activeOpacity={0.9}
-        >
-          <LinearGradient
-            colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.8)']}
-            style={styles.viewProfileGradient}
-          >
-            <Ionicons name="information-circle" size={24} color={Colors.neutral.white} />
-            <Text style={styles.viewProfileText}>View Full Profile</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        />
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.buttonRow}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.passButton]} 
-          onPress={() => handleSwipe('left')}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#FFFFFF', '#F8F9FA']}
-            style={styles.buttonGradient}
-          >
-            <Ionicons name="close" size={32} color={Colors.highlight.error} />
-          </LinearGradient>
-        </TouchableOpacity>
+      {/* ===== ACTIONS ===== */}
+      <View style={styles.actionsContainer}>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity onPress={() => handleSwipe('left')}>
+            <View style={[styles.actionButton, styles.pass]}>
+              <Ionicons name="close" size={36} color={Colors.highlight.error} />
+            </View>
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.infoButton]} 
-          onPress={viewProfile}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#4ECDC4', '#3BB5AD']}
-            style={styles.buttonGradient}
-          >
-            <Ionicons name="information" size={28} color={Colors.neutral.white} />
-          </LinearGradient>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={viewProfile}>
+            <View style={[styles.actionButton, styles.info]}>
+              <Ionicons name="information" size={30} color={Colors.neutral.white} />
+            </View>
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.likeButton]} 
-          onPress={() => handleSwipe('right')}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={['#6BCF7F', '#51B96F']}
-            style={styles.buttonGradient}
-          >
-            <Ionicons name="heart" size={32} color={Colors.neutral.white} />
-          </LinearGradient>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleSwipe('right')}>
+            <View style={[styles.actionButton, styles.like]}>
+              <Ionicons name="heart" size={36} color={Colors.neutral.white} />
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-  },
-  logoHeader: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-  logoImage: {
-    width: 120,
-    height: 40,
-  },
+  container: { flex: 1 },
+
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: Colors.neutral.grey,
-    fontWeight: '500',
-  },
+
+  /* HEADER FIX */
   header: {
+    height: 110,
+    paddingTop: 50,
+    paddingHorizontal: 20,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 16,
-    marginTop: 12,
+    justifyContent: 'space-between',
   },
+
+  logo: {
+    width: 90,
+    height: 32,
+    tintColor: Colors.neutral.white,
+  },
+
+  headerText: {
+    alignItems: 'center',
+  },
+
   headerTitle: {
-    fontSize: 32,
+    fontSize: 22,
     fontWeight: '800',
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
   },
-  profileCounter: {
-    backgroundColor: Colors.primary.navy,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+
+  headerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+  },
+
+  counter: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
+
   counterText: {
     color: Colors.neutral.white,
     fontWeight: '700',
-    fontSize: 16,
   },
-  cardContainer: {
+
+  /* CARD */
+  cardArea: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
   },
-  viewProfileBtn: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    borderRadius: 12,
-    overflow: 'hidden',
+
+  /* ACTIONS */
+  actionsContainer: {
+    paddingBottom: 30,
   },
-  viewProfileGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    gap: 8,
-  },
-  viewProfileText: {
-    color: Colors.neutral.white,
-    fontWeight: '700',
-    fontSize: 16,
-  },
+
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    gap: 16,
+    gap: 24,
   },
+
   actionButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    overflow: 'hidden',
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  infoButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  buttonGradient: {
-    flex: 1,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  passButton: {},
-  likeButton: {},
-  emptyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
+
+  pass: { backgroundColor: Colors.neutral.white },
+  info: { backgroundColor: Colors.secondary.teal },
+  like: { backgroundColor: Colors.highlight.success },
+
+  loadingText: {
+    marginTop: 16,
+    color: Colors.neutral.white,
   },
-  emptyIconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.neutral.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
+
   emptyTitle: {
     fontSize: 28,
-    fontWeight: '800',
-    color: Colors.primary.navy,
-    marginBottom: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: Colors.neutral.grey,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  refreshBtn: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  refreshGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    gap: 8,
-  },
-  refreshText: {
     color: Colors.neutral.white,
-    fontWeight: '700',
-    fontSize: 17,
   },
 });

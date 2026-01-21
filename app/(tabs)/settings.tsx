@@ -140,19 +140,25 @@ export default function SettingsScreen() {
   };
 
   return (
-    <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
-      {/* Logo Header */}
-      <View style={styles.logoHeader}>
-        <Image 
-          source={require('../../assets/images/logo.png')} 
-          style={styles.logoImage}
-          resizeMode="contain"
-        />
-      </View>
+    <LinearGradient 
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.container}
+    >
+      {/* Decorative Background Elements */}
+      <View style={styles.bgDecoration1} />
+      <View style={styles.bgDecoration2} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <View>
+            <Text style={styles.headerTitle}>Settings</Text>
+            <Text style={styles.headerSubtitle}>Manage your preferences</Text>
+          </View>
         </View>
 
         {/* Profile Section */}
@@ -214,6 +220,7 @@ export default function SettingsScreen() {
                 onValueChange={toggleVisibility}
                 trackColor={{ false: Colors.neutral.greyLight, true: Colors.secondary.teal }}
                 thumbColor={Colors.neutral.white}
+                ios_backgroundColor={Colors.neutral.greyLight}
               />
             </View>
           </View>
@@ -224,7 +231,7 @@ export default function SettingsScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.cardRow}>
-              <View style={styles.iconCircle}>
+              <View style={[styles.iconCircle, styles.dangerIconCircle]}>
                 <Ionicons name="ban-outline" size={20} color={Colors.highlight.error} />
               </View>
               <View style={styles.cardContent}>
@@ -246,7 +253,7 @@ export default function SettingsScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.cardRow}>
-              <View style={styles.iconCircle}>
+              <View style={[styles.iconCircle, styles.heartIconCircle]}>
                 <Ionicons name="heart-outline" size={20} color={Colors.highlight.error} />
               </View>
               <View style={styles.cardContent}>
@@ -263,16 +270,16 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Account</Text>
           
           <TouchableOpacity 
-            style={styles.card}
+            style={[styles.card, styles.dangerCard]}
             onPress={handleSignOut}
             activeOpacity={0.8}
           >
             <View style={styles.cardRow}>
-              <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 71, 87, 0.1)' }]}>
+              <View style={[styles.iconCircle, styles.dangerIconCircle]}>
                 <Ionicons name="log-out-outline" size={20} color={Colors.highlight.error} />
               </View>
               <View style={styles.cardContent}>
-                <Text style={[styles.cardTitle, { color: Colors.highlight.error }]}>Sign Out</Text>
+                <Text style={[styles.cardTitle, styles.dangerText]}>Sign Out</Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -363,33 +370,80 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60 },
-  logoHeader: {
-    alignItems: 'center',
-    paddingVertical: 16,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+  container: { flex: 1 },
+  
+  // Background Decorations
+  bgDecoration1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
   },
-  logoImage: {
-    width: 120,
-    height: 40,
+  bgDecoration2: {
+    position: 'absolute',
+    bottom: 100,
+    left: -150,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
   },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
-  header: { marginBottom: 24, marginTop: 16 },
-  headerTitle: { fontSize: 32, fontWeight: '800', color: Colors.primary.navy },
-  section: { marginBottom: 32 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.neutral.grey, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: { 
+    paddingHorizontal: 24, 
+    paddingBottom: 40,
+    paddingTop: 70,
+  },
+  header: { 
+    marginBottom: 24,
+  },
+  headerTitle: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    color: Colors.neutral.white,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
+  },
+  section: { 
+    marginBottom: 32 
+  },
+  sectionTitle: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: 'rgba(255, 255, 255, 0.9)', 
+    marginBottom: 12, 
+    textTransform: 'uppercase', 
+    letterSpacing: 1,
+  },
   card: {
     backgroundColor: Colors.neutral.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  cardRow: { flexDirection: 'row', alignItems: 'center' },
+  dangerCard: {
+    borderWidth: 2,
+    borderColor: 'rgba(255, 71, 87, 0.3)',
+  },
+  cardRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
   iconCircle: {
     width: 44,
     height: 44,
@@ -399,11 +453,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  cardContent: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: Colors.primary.navy, marginBottom: 2 },
-  cardSubtitle: { fontSize: 13, color: Colors.neutral.grey },
+  dangerIconCircle: {
+    backgroundColor: 'rgba(255, 71, 87, 0.1)',
+  },
+  heartIconCircle: {
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+  },
+  cardContent: { 
+    flex: 1 
+  },
+  cardTitle: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: Colors.primary.navy, 
+    marginBottom: 2 
+  },
+  dangerText: {
+    color: Colors.highlight.error,
+  },
+  cardSubtitle: { 
+    fontSize: 13, 
+    color: Colors.neutral.grey 
+  },
   
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)', 
+    justifyContent: 'flex-end' 
+  },
   modalContainer: {
     backgroundColor: Colors.neutral.white,
     borderTopLeftRadius: 24,
@@ -418,9 +495,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral.border,
   },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: Colors.primary.navy },
-  modalContent: { padding: 20 },
-  emptyText: { textAlign: 'center', color: Colors.neutral.grey, fontSize: 15, paddingVertical: 40 },
+  modalTitle: { 
+    fontSize: 20, 
+    fontWeight: '700', 
+    color: Colors.primary.navy 
+  },
+  modalContent: { 
+    padding: 20 
+  },
+  emptyText: { 
+    textAlign: 'center', 
+    color: Colors.neutral.grey, 
+    fontSize: 15, 
+    paddingVertical: 40 
+  },
   
   userCard: {
     flexDirection: 'row',
@@ -430,15 +518,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 8,
   },
-  userAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: Colors.neutral.border, marginRight: 12 },
-  userName: { flex: 1, fontSize: 16, fontWeight: '600', color: Colors.primary.navy },
+  userAvatar: { 
+    width: 50, 
+    height: 50, 
+    borderRadius: 25, 
+    backgroundColor: Colors.neutral.border, 
+    marginRight: 12 
+  },
+  userName: { 
+    flex: 1, 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: Colors.primary.navy 
+  },
   unblockBtn: {
     backgroundColor: Colors.secondary.teal,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
-  unblockText: { color: Colors.neutral.white, fontWeight: '600', fontSize: 14 },
+  unblockText: { 
+    color: Colors.neutral.white, 
+    fontWeight: '600', 
+    fontSize: 14 
+  },
   unlikeBtn: {
     backgroundColor: Colors.highlight.error,
     width: 40,
