@@ -59,7 +59,7 @@ export default function DiscoverScreen() {
         .select('*')
         .not('id', 'in', `(${excludeIds.join(',')})`)
         .eq('is_visible', true)
-        .limit(10);
+        .limit(100);
 
       if (error) throw error;
       setProfiles(data || []);

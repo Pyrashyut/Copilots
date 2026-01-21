@@ -31,17 +31,15 @@ export default function TripSelection() {
       if (!user) return;
       setCurrentUser(user);
 
-      // Fetch ALL bookings between these two (not just single)
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
         .or(`and(user_a.eq.${user.id},user_b.eq.${params.matchId}),and(user_a.eq.${params.matchId},user_b.eq.${user.id})`)
-        .order('created_at', { ascending: false }); // Get newest first
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // If multiple exist (bug), keep the newest, delete the rest
         if (data.length > 1) {
           const toKeep = data[0];
           const toDelete = data.slice(1).map(b => b.id);
@@ -62,7 +60,6 @@ export default function TripSelection() {
   };
 
   const handleInvite = async (tierId: string) => {
-    // Safety check
     if (booking) {
       Alert.alert("Hold on", "You already have a pending invite. Cancel it first.");
       return;
@@ -73,13 +70,11 @@ export default function TripSelection() {
       { text: "Send Invite", onPress: async () => {
         setLoading(true);
         
-        // 1. Double check cleanup
         await supabase
           .from('bookings')
           .delete()
           .or(`and(user_a.eq.${currentUser.id},user_b.eq.${params.matchId}),and(user_a.eq.${params.matchId},user_b.eq.${currentUser.id})`);
 
-        // 2. Create New
         const { error } = await supabase.from('bookings').insert({
           tier_id: tierId,
           user_a: currentUser.id,
@@ -125,8 +120,6 @@ export default function TripSelection() {
       { text: "Go Back", style: "cancel" },
       { text: action === 'cancel' ? "Yes, Cancel" : "Decline", style: 'destructive', onPress: async () => {
         setLoading(true);
-        
-        // Optimistic UI Update: Clear immediately so user feels it worked
         setBooking(null);
 
         const { error } = await supabase
@@ -136,7 +129,7 @@ export default function TripSelection() {
 
         if (error) {
           Alert.alert("Error", "Could not delete booking.");
-          checkExistingBooking(); // Revert on error
+          checkExistingBooking();
         } 
         
         setLoading(false);
@@ -144,22 +137,31 @@ export default function TripSelection() {
     ]);
   };
 
-  if (loading) return <ActivityIndicator style={{flex:1, marginTop: 50}} color={Colors.primary.navy} />;
+  if (loading) return <ActivityIndicator style={{flex:1, marginTop: 50}} color={Colors.highlight.gold} />;
 
-  // SCENARIO 1: Booking Exists 
   if (booking) {
     const isMyInvite = booking.invited_by === currentUser.id;
     const tier = TIERS.find(t => t.id === booking.tier_id);
 
     return (
-      <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
+      <LinearGradient 
+        colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
+        locations={[0, 0.3, 0.6, 1]}
+        style={styles.container}
+      >
+        {/* Decorative Background Elements */}
+        <View style={styles.bgDecoration1} />
+        <View style={styles.bgDecoration2} />
+        
         <SafeAreaView style={styles.safeArea}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary.navy} />
+            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
           </TouchableOpacity>
           
           <View style={styles.statusCard}>
-             <Ionicons name={isMyInvite ? "paper-plane" : "gift"} size={48} color={Colors.primary.navy} />
+             <View style={styles.iconCircle}>
+               <Ionicons name={isMyInvite ? "paper-plane" : "gift"} size={48} color={Colors.primary.navy} />
+             </View>
              <Text style={styles.statusTitle}>
                {booking.status === 'active' ? 'Adventure Active!' : (isMyInvite ? 'Invitation Sent' : 'Invitation Received')}
              </Text>
@@ -169,18 +171,28 @@ export default function TripSelection() {
                  : (isMyInvite ? `You invited ${params.name} to the ${tier?.name || 'Trip'}. Waiting for them to accept.` : `${params.name} wants to go on a ${tier?.name || 'Trip'} with you!`)}
              </Text>
 
-             {/* Status: ACTIVE */}
              {booking.status === 'active' && (
                 <TouchableOpacity style={styles.actionButton} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: booking.id } })}>
-                  <Text style={styles.btnText}>Open Chat</Text>
+                  <LinearGradient
+                    colors={Colors.gradient.sunset}
+                    style={styles.buttonGradient}
+                  >
+                    <Ionicons name="chatbubbles" size={20} color={Colors.neutral.white} />
+                    <Text style={styles.btnText}>Open Chat</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
              )}
 
-             {/* Status: PENDING + RECEIVED */}
              {booking.status === 'pending' && !isMyInvite && (
                <View style={styles.btnColumn}>
                   <TouchableOpacity style={styles.actionButton} onPress={handleAccept}>
-                    <Text style={styles.btnText}>Accept & Start Chat</Text>
+                    <LinearGradient
+                      colors={Colors.gradient.sunset}
+                      style={styles.buttonGradient}
+                    >
+                      <Ionicons name="checkmark-circle" size={20} color={Colors.neutral.white} />
+                      <Text style={styles.btnText}>Accept & Start Chat</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                   
                   <TouchableOpacity style={styles.declineButton} onPress={() => handleCancelOrDecline('decline')}>
@@ -189,7 +201,6 @@ export default function TripSelection() {
                </View>
              )}
 
-             {/* Status: PENDING + SENT */}
              {booking.status === 'pending' && isMyInvite && (
                 <TouchableOpacity style={styles.cancelButton} onPress={() => handleCancelOrDecline('cancel')}>
                   <Text style={styles.cancelText}>Cancel Invitation</Text>
@@ -201,69 +212,217 @@ export default function TripSelection() {
     );
   }
 
-  // SCENARIO 2: No Booking (Select a Tier)
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={{backgroundColor: Colors.primary.navy}}>
+    <LinearGradient 
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.container}
+    >
+      {/* Decorative Background Elements */}
+      <View style={styles.bgDecoration1} />
+      <View style={styles.bgDecoration2} />
+      
+      <SafeAreaView style={{flex: 1}}>
          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="white"/></TouchableOpacity>
-            <Text style={styles.headerTitle}>Plan with {params.name}</Text>
-         </View>
-      </SafeAreaView>
-      <ScrollView contentContainerStyle={{padding: 20}}>
-        <Text style={styles.title}>Choose Adventure</Text>
-        <Text style={styles.subtitle}>Send an invite. If they accept, you have 24 hours to chat.</Text>
-        
-        <View style={{gap: 15, marginTop: 20}}>
-          {TIERS.map(tier => (
-            <TouchableOpacity key={tier.id} onPress={() => handleInvite(tier.id)}>
-              <LinearGradient colors={tier.color as any} style={styles.card}>
-                <View style={styles.row}>
-                   <Text style={styles.tierName}>{tier.name}</Text>
-                   <Text style={styles.price}>{tier.price}</Text>
-                </View>
-                <Text style={styles.desc}>{tier.desc}</Text>
-                <View style={styles.btn}>
-                  <Text style={styles.btnLabel}>Send Invite</Text>
-                  <Ionicons name="arrow-forward" size={16} color={Colors.primary.navy} />
-                </View>
-              </LinearGradient>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color={Colors.neutral.white}/>
             </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
+            <Text style={styles.headerTitle}>Plan with {params.name}</Text>
+            <View style={{width: 40}} />
+         </View>
+         
+         <ScrollView contentContainerStyle={{padding: 20}}>
+          <Text style={styles.title}>Choose Adventure</Text>
+          <Text style={styles.subtitle}>Send an invite. If they accept, you have 24 hours to chat.</Text>
+          
+          <View style={{gap: 15, marginTop: 20}}>
+            {TIERS.map(tier => (
+              <TouchableOpacity key={tier.id} onPress={() => handleInvite(tier.id)}>
+                <LinearGradient colors={tier.color as any} style={styles.card}>
+                  <View style={styles.row}>
+                     <Text style={styles.tierName}>{tier.name}</Text>
+                     <Text style={styles.price}>{tier.price}</Text>
+                  </View>
+                  <Text style={styles.desc}>{tier.desc}</Text>
+                  <View style={styles.btn}>
+                    <Text style={styles.btnLabel}>Send Invite</Text>
+                    <Ionicons name="arrow-forward" size={16} color={Colors.primary.navy} />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.neutral.trailDust },
-  safeArea: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 15, gap: 15 },
-  headerTitle: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  backButton: { margin: 20 },
+  container: { flex: 1 },
   
-  statusCard: { margin: 20, backgroundColor: 'white', padding: 30, borderRadius: 20, alignItems: 'center', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
-  statusTitle: { fontSize: 22, fontWeight: 'bold', color: Colors.primary.navy, marginTop: 20 },
-  statusText: { textAlign: 'center', color: Colors.neutral.grey, marginTop: 10, lineHeight: 22, marginBottom: 20 },
+  // Background Decorations
+  bgDecoration1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+  },
+  bgDecoration2: {
+    position: 'absolute',
+    bottom: 100,
+    left: -150,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+  
+  safeArea: { flex: 1 },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    padding: 15, 
+    gap: 15 
+  },
+  headerTitle: { 
+    color: Colors.neutral.white, 
+    fontSize: 18, 
+    fontWeight: 'bold' 
+  },
+  backButton: { 
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  statusCard: { 
+    margin: 20, 
+    backgroundColor: 'white', 
+    padding: 30, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8
+  },
+  iconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.neutral.trailDust,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  statusTitle: { 
+    fontSize: 22, 
+    fontWeight: 'bold', 
+    color: Colors.primary.navy, 
+    marginBottom: 12
+  },
+  statusText: { 
+    textAlign: 'center', 
+    color: Colors.neutral.grey, 
+    marginBottom: 20, 
+    lineHeight: 22 
+  },
   
   btnColumn: { width: '100%', gap: 10, alignItems: 'center' },
-  actionButton: { backgroundColor: Colors.highlight.gold, paddingVertical: 15, paddingHorizontal: 30, borderRadius: 30, width: '100%', alignItems: 'center' },
-  btnText: { fontWeight: 'bold', color: Colors.primary.navy, fontSize: 16 },
+  actionButton: { 
+    width: '100%', 
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    gap: 8,
+  },
+  btnText: { 
+    fontWeight: 'bold', 
+    color: Colors.neutral.white, 
+    fontSize: 16 
+  },
   
   cancelButton: { marginTop: 10, padding: 10 },
-  cancelText: { color: Colors.highlight.error, fontWeight: '600' },
+  cancelText: { 
+    color: Colors.highlight.error, 
+    fontWeight: '600' 
+  },
 
   declineButton: { padding: 10 },
-  declineText: { color: Colors.neutral.grey, fontWeight: '600' },
+  declineText: { 
+    color: Colors.neutral.grey, 
+    fontWeight: '600' 
+  },
 
-  title: { fontSize: 28, fontWeight: 'bold', color: Colors.primary.navy },
-  subtitle: { fontSize: 15, color: Colors.neutral.grey, marginTop: 5 },
-  card: { padding: 20, borderRadius: 16 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  tierName: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-  price: { color: 'white', fontWeight: 'bold' },
-  desc: { color: 'rgba(255,255,255,0.9)', marginTop: 10, marginBottom: 15 },
-  btn: { backgroundColor: 'white', alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  btnLabel: { fontWeight: 'bold', color: Colors.primary.navy }
+  title: { 
+    fontSize: 28, 
+    fontWeight: 'bold', 
+    color: Colors.neutral.white 
+  },
+  subtitle: { 
+    fontSize: 15, 
+    color: 'rgba(255, 255, 255, 0.8)', 
+    marginTop: 5 
+  },
+  card: { 
+    padding: 20, 
+    borderRadius: 16,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  row: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
+  },
+  tierName: { 
+    color: 'white', 
+    fontSize: 20, 
+    fontWeight: 'bold' 
+  },
+  price: { 
+    color: 'white', 
+    fontWeight: 'bold' 
+  },
+  desc: { 
+    color: 'rgba(255,255,255,0.9)', 
+    marginTop: 10, 
+    marginBottom: 15 
+  },
+  btn: { 
+    backgroundColor: 'white', 
+    alignSelf: 'flex-start', 
+    paddingVertical: 8, 
+    paddingHorizontal: 16, 
+    borderRadius: 20, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 5 
+  },
+  btnLabel: { 
+    fontWeight: 'bold', 
+    color: Colors.primary.navy 
+  }
 });

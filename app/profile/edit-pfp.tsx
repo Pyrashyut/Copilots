@@ -62,7 +62,6 @@ export default function EditProfilePictureScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setSelectedImage(result.assets[0].uri);
-        // Reset transform values
         scale.value = 1;
         savedScale.value = 1;
         translateX.value = 0;
@@ -124,7 +123,6 @@ export default function EditProfilePictureScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      // Resize and crop to square
       const resizedImage = await manipulateAsync(
         selectedImage,
         [{ resize: { width: 800, height: 800 } }],
@@ -148,7 +146,6 @@ export default function EditProfilePictureScreen() {
         .from('user_photos')
         .getPublicUrl(fileName);
 
-      // Get current photos
       const { data: profileData } = await supabase
         .from('profiles')
         .select('photos')
@@ -157,11 +154,9 @@ export default function EditProfilePictureScreen() {
 
       let updatedPhotos = [publicUrl];
       if (profileData?.photos && profileData.photos.length > 0) {
-        // Replace first photo, keep others
         updatedPhotos = [publicUrl, ...profileData.photos.slice(1)];
       }
 
-      // Update profile
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ photos: updatedPhotos })
@@ -182,11 +177,19 @@ export default function EditProfilePictureScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
+      <LinearGradient 
+        colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
+        locations={[0, 0.3, 0.6, 1]}
+        style={styles.container}
+      >
+        {/* Decorative Background Elements */}
+        <View style={styles.bgDecoration1} />
+        <View style={styles.bgDecoration2} />
+        
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={Colors.primary.navy} />
+              <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Profile Picture</Text>
             <View style={{ width: 40 }} />
@@ -216,7 +219,7 @@ export default function EditProfilePictureScreen() {
                 </View>
               ) : (
                 <View style={styles.placeholder}>
-                  <Ionicons name="camera" size={64} color={Colors.neutral.greyLight} />
+                  <Ionicons name="camera" size={64} color="rgba(255, 255, 255, 0.5)" />
                   <Text style={styles.placeholderText}>No image selected</Text>
                 </View>
               )}
@@ -228,7 +231,7 @@ export default function EditProfilePictureScreen() {
                 onPress={pickImage}
                 activeOpacity={0.8}
               >
-                <Ionicons name="images-outline" size={24} color={Colors.primary.navy} />
+                <Ionicons name="images-outline" size={24} color={Colors.neutral.white} />
                 <Text style={styles.controlText}>Choose Photo</Text>
               </TouchableOpacity>
 
@@ -238,7 +241,7 @@ export default function EditProfilePictureScreen() {
                   onPress={resetTransform}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="refresh-outline" size={24} color={Colors.primary.navy} />
+                  <Ionicons name="refresh-outline" size={24} color={Colors.neutral.white} />
                   <Text style={styles.controlText}>Reset</Text>
                 </TouchableOpacity>
               )}
@@ -275,21 +278,51 @@ export default function EditProfilePictureScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  
+  // Background Decorations
+  bgDecoration1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+  },
+  bgDecoration2: {
+    position: 'absolute',
+    bottom: 100,
+    left: -150,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+  
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.border,
   },
-  backButton: { width: 40 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.primary.navy },
+  backButton: { 
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: Colors.neutral.white 
+  },
   content: { flex: 1, padding: 24 },
   instructions: {
     fontSize: 15,
-    color: Colors.neutral.grey,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -305,7 +338,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     borderRadius: IMAGE_SIZE / 2,
-    backgroundColor: Colors.neutral.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   imageWrapper: {
     width: '100%',
@@ -336,16 +369,16 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: IMAGE_SIZE / 2,
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.neutral.border,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     borderStyle: 'dashed',
   },
   placeholderText: {
     fontSize: 16,
-    color: Colors.neutral.greyLight,
+    color: 'rgba(255, 255, 255, 0.6)',
     marginTop: 12,
   },
   controls: {
@@ -355,24 +388,29 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   controlButton: {
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderWidth: 2,
-    borderColor: Colors.neutral.border,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   controlText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
   },
   saveButton: {
     borderRadius: 12,
     overflow: 'hidden',
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   disabledButton: {
     opacity: 0.5,

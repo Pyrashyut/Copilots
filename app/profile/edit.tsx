@@ -6,16 +6,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text, TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text, TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
@@ -54,11 +54,8 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
-  // Travel preferences
   const [travelTraits, setTravelTraits] = useState<Record<string, string>>({});
   const [experienceMatrix, setExperienceMatrix] = useState<Record<string, string>>({});
-
-  // Collapsible sections state
   const [travelStyleExpanded, setTravelStyleExpanded] = useState(false);
   const [experienceMatrixExpanded, setExperienceMatrixExpanded] = useState(false);
 
@@ -243,11 +240,19 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
+    <LinearGradient 
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.container}
+    >
+      {/* Decorative Background Elements */}
+      <View style={styles.bgDecoration1} />
+      <View style={styles.bgDecoration2} />
+      
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.primary.navy} />
+            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Profile</Text>
           <View style={{ width: 40 }} />
@@ -329,6 +334,7 @@ export default function EditProfileScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="adventurer_99"
+                placeholderTextColor={Colors.neutral.greyLight}
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
@@ -343,6 +349,7 @@ export default function EditProfileScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="25"
+                placeholderTextColor={Colors.neutral.greyLight}
                 value={age}
                 onChangeText={setAge}
                 keyboardType="number-pad"
@@ -357,6 +364,7 @@ export default function EditProfileScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Product Designer"
+                placeholderTextColor={Colors.neutral.greyLight}
                 value={jobTitle}
                 onChangeText={setJobTitle}
               />
@@ -370,6 +378,7 @@ export default function EditProfileScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="London, UK"
+                placeholderTextColor={Colors.neutral.greyLight}
                 value={location}
                 onChangeText={setLocation}
               />
@@ -382,6 +391,7 @@ export default function EditProfileScreen() {
               <TextInput
                 style={[styles.input, styles.textArea]}
                 placeholder="Tell others about yourself..."
+                placeholderTextColor={Colors.neutral.greyLight}
                 value={bio}
                 onChangeText={setBio}
                 multiline
@@ -400,7 +410,7 @@ export default function EditProfileScreen() {
               <Ionicons 
                 name={travelStyleExpanded ? "chevron-down" : "chevron-forward"} 
                 size={24} 
-                color={Colors.primary.navy} 
+                color={Colors.neutral.white} 
               />
               <View>
                 <Text style={styles.sectionHeader}>Travel Style</Text>
@@ -409,7 +419,7 @@ export default function EditProfileScreen() {
                 </Text>
               </View>
             </View>
-            <Ionicons name="airplane" size={20} color={Colors.primary.navy} />
+            <Ionicons name="airplane" size={20} color={Colors.neutral.white} />
           </TouchableOpacity>
 
           {travelStyleExpanded && (
@@ -452,7 +462,7 @@ export default function EditProfileScreen() {
               <Ionicons 
                 name={experienceMatrixExpanded ? "chevron-down" : "chevron-forward"} 
                 size={24} 
-                color={Colors.primary.navy} 
+                color={Colors.neutral.white} 
               />
               <View>
                 <Text style={styles.sectionHeader}>Experience Matrix</Text>
@@ -461,7 +471,7 @@ export default function EditProfileScreen() {
                 </Text>
               </View>
             </View>
-            <Ionicons name="star" size={20} color={Colors.primary.navy} />
+            <Ionicons name="star" size={20} color={Colors.neutral.white} />
           </TouchableOpacity>
 
           {experienceMatrixExpanded && (
@@ -543,31 +553,69 @@ export default function EditProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  
+  // Background Decorations
+  bgDecoration1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+  },
+  bgDecoration2: {
+    position: 'absolute',
+    bottom: 100,
+    left: -150,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+  
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.border,
   },
-  backButton: { width: 40 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.primary.navy },
-  scrollContent: { padding: 24, paddingBottom: 40 },
+  backButton: { 
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: Colors.neutral.white 
+  },
+  scrollContent: { 
+    padding: 24, 
+    paddingBottom: 40 
+  },
   section: { marginBottom: 20 },
   sectionHeader: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
     marginBottom: 4,
   },
   sectionSubtext: {
     fontSize: 14,
-    color: Colors.neutral.grey,
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 16,
   },
-  label: { fontSize: 16, fontWeight: '700', color: Colors.primary.navy, marginBottom: 12 },
+  label: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: Colors.neutral.white, 
+    marginBottom: 12 
+  },
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -575,16 +623,27 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   countBadge: {
-    backgroundColor: Colors.primary.navy,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
-  countText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '700' },
+  countText: { 
+    color: Colors.neutral.white, 
+    fontSize: 12, 
+    fontWeight: '700' 
+  },
   
   photoScroll: { marginBottom: 12 },
   imageWrapper: { position: 'relative', marginRight: 12 },
-  thumb: { width: 120, height: 160, borderRadius: 12, backgroundColor: Colors.neutral.border },
+  thumb: { 
+    width: 120, 
+    height: 160, 
+    borderRadius: 12, 
+    backgroundColor: Colors.neutral.border 
+  },
   removeBtn: {
     position: 'absolute',
     top: -6,
@@ -607,7 +666,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  primaryText: { color: Colors.primary.navy, fontSize: 10, fontWeight: '700' },
+  primaryText: { 
+    color: Colors.primary.navy, 
+    fontSize: 10, 
+    fontWeight: '700' 
+  },
   moveLeftBtn: {
     position: 'absolute',
     bottom: 8,
@@ -623,15 +686,24 @@ const styles = StyleSheet.create({
     width: 120,
     height: 160,
     borderRadius: 12,
-    backgroundColor: Colors.primary.navy,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.primary.navyLight,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     borderStyle: 'dashed',
   },
-  addText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '600', marginTop: 4 },
-  helpText: { fontSize: 13, color: Colors.neutral.grey, lineHeight: 20 },
+  addText: { 
+    color: Colors.neutral.white, 
+    fontSize: 12, 
+    fontWeight: '600', 
+    marginTop: 4 
+  },
+  helpText: { 
+    fontSize: 13, 
+    color: 'rgba(255, 255, 255, 0.8)', 
+    lineHeight: 20 
+  },
   
   inputWrapper: {
     flexDirection: 'row',
@@ -639,11 +711,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral.white,
     borderRadius: 12,
     paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: Colors.neutral.border,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, paddingVertical: 16, fontSize: 16, color: Colors.primary.navy },
+  input: { 
+    flex: 1, 
+    paddingVertical: 16, 
+    fontSize: 16, 
+    color: Colors.primary.navy 
+  },
   textAreaWrapper: { alignItems: 'flex-start', paddingVertical: 8 },
   textArea: { height: 100, textAlignVertical: 'top' },
 
@@ -652,16 +732,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     padding: 16,
     borderRadius: 12,
     marginTop: 24,
     marginBottom: 8,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
   },
   collapsibleHeaderLeft: {
     flexDirection: 'row',
@@ -671,7 +748,7 @@ const styles = StyleSheet.create({
   },
   collapsibleSubtext: {
     fontSize: 12,
-    color: Colors.neutral.grey,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
   collapsibleContent: {
@@ -687,7 +764,7 @@ const styles = StyleSheet.create({
     height: 56,
     alignItems: 'center',
     padding: 4,
-    shadowColor: "#000",
+    shadowColor: Colors.shadow.light,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -771,14 +848,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginTop: 24,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   saveGradient: {
     paddingVertical: 18,
     alignItems: 'center',
   },
-  saveText: { color: Colors.neutral.white, fontWeight: '700', fontSize: 17 },
+  saveText: { 
+    color: Colors.neutral.white, 
+    fontWeight: '700', 
+    fontSize: 17 
+  },
   
-  modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' },
+  modalContainer: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.95)', 
+    justifyContent: 'center' 
+  },
   modalSafeArea: { flex: 1, justifyContent: 'center' },
   fullImage: { width: '100%', height: '80%' },
   closeModalBtn: { position: 'absolute', top: 50, right: 20, zIndex: 20 },

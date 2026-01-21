@@ -132,10 +132,8 @@ export default function OnboardingStep0() {
           Alert.alert('Save Failed', error.message);
         }
       } else {
-        // Refresh session first
         await supabase.auth.refreshSession();
         
-        // Show success message with reminder to complete profile
         Alert.alert(
           '🎉 Welcome Aboard!', 
           'Your account is ready! Would you like to complete your profile now to get better matches?',
@@ -143,7 +141,6 @@ export default function OnboardingStep0() {
             { 
               text: 'Complete Profile Now', 
               onPress: () => {
-                // Use push instead of replace to ensure navigation works
                 router.push('/profile/edit');
               }
             },
@@ -165,7 +162,15 @@ export default function OnboardingStep0() {
   };
 
   return (
-    <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.gradient}>
+    <LinearGradient 
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.gradient}
+    >
+      {/* Decorative Background Elements */}
+      <View style={styles.bgDecoration1} />
+      <View style={styles.bgDecoration2} />
+      
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.headerSection}>
           <View style={styles.stepIndicator}>
@@ -316,20 +321,44 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  
+  // Background Decorations
+  bgDecoration1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+  },
+  bgDecoration2: {
+    position: 'absolute',
+    bottom: 100,
+    left: -150,
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+  
   content: {
     padding: 24,
+    paddingTop: 70,
     paddingBottom: 40,
   },
   headerSection: {
     marginBottom: 32,
   },
   stepIndicator: {
-    backgroundColor: Colors.primary.navy,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   stepText: {
     color: Colors.neutral.white,
@@ -339,12 +368,12 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 32,
     fontWeight: '800',
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
     marginBottom: 8,
   },
   subHeader: {
     fontSize: 15,
-    color: Colors.neutral.grey,
+    color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 22,
   },
   section: {
@@ -353,7 +382,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary.navy,
+    color: Colors.neutral.white,
     marginBottom: 12,
   },
   labelRow: {
@@ -363,10 +392,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   countBadge: {
-    backgroundColor: Colors.primary.navy,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   countText: {
     color: Colors.neutral.white,
@@ -379,13 +410,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral.white,
     borderRadius: 12,
     paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: Colors.neutral.border,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
   inputIcon: {
     marginRight: 12,
@@ -446,11 +475,11 @@ const styles = StyleSheet.create({
     width: 105,
     height: 140,
     borderRadius: 12,
-    backgroundColor: Colors.primary.navy,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.primary.navyLight,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     borderStyle: 'dashed',
   },
   addText: {
@@ -461,7 +490,7 @@ const styles = StyleSheet.create({
   },
   helpText: {
     fontSize: 13,
-    color: Colors.neutral.grey,
+    color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 12,
     lineHeight: 20,
   },
@@ -490,7 +519,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
-    color: Colors.neutral.grey,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     lineHeight: 20,
   },
