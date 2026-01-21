@@ -1,9 +1,9 @@
-// app/(tabs)/index.tsx - Updated with profile viewing
+// app/(tabs)/index.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import SwipeCard from '../../components/SwipeCard';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
@@ -23,7 +23,6 @@ export default function DiscoverScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get all IDs to exclude: swiped users, blocked users, and users who blocked me
       const { data: swipes } = await supabase
         .from('swipes')
         .select('likee_id')
@@ -45,7 +44,6 @@ export default function DiscoverScreen() {
       
       const excludeIds = [...new Set([...swipedIds, ...blockedByMeIds, ...blockedMeIds, user.id])];
 
-      // Fetch visible profiles only
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -150,6 +148,15 @@ export default function DiscoverScreen() {
 
   return (
     <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
+      {/* Logo Header */}
+      <View style={styles.logoHeader}>
+        <Image 
+          source={require('../../assets/images/logo.png')} 
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+      </View>
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Discover</Text>
@@ -162,7 +169,6 @@ export default function DiscoverScreen() {
       <View style={styles.cardContainer}>
         <SwipeCard profile={profiles[currentIndex]} />
         
-        {/* View Profile Button Overlay */}
         <TouchableOpacity 
           style={styles.viewProfileBtn}
           onPress={viewProfile}
@@ -228,6 +234,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 60,
   },
+  logoHeader: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  logoImage: {
+    width: 120,
+    height: 40,
+  },
   center: {
     flex: 1,
     justifyContent: 'center',
@@ -245,6 +260,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     marginBottom: 16,
+    marginTop: 12,
   },
   headerTitle: {
     fontSize: 32,

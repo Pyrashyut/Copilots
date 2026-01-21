@@ -1,11 +1,11 @@
 // app/(auth)/login.tsx
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Link, useRouter } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/Colors';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Colors } from '../../constants/Colors';
+import { supabase } from '../../lib/supabase';
 
 export default function Login() {
   const router = useRouter();
@@ -43,12 +43,13 @@ export default function Login() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Logo/Icon Area */}
+          {/* Logo Area */}
           <View style={styles.logoContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="airplane" size={48} color={Colors.highlight.gold} />
-            </View>
-            <Text style={styles.title}>COPILOTS</Text>
+            <Image 
+              source={require('../../assets/images/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.subtitle}>Where your next adventure{'\n'}is your first date</Text>
           </View>
 
@@ -140,24 +141,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  logo: {
+    width: 200,
+    height: 80,
     marginBottom: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  title: {
-    fontSize: 42,
-    fontWeight: '800',
-    color: Colors.neutral.white,
-    textAlign: 'center',
-    marginBottom: 12,
-    letterSpacing: 4,
   },
   subtitle: {
     fontSize: 15,

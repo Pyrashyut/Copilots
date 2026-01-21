@@ -3,11 +3,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, Image, Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
-
-const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -28,7 +26,6 @@ export default function SettingsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch profile
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -40,7 +37,6 @@ export default function SettingsScreen() {
         setIsVisible(profileData.is_visible ?? true);
       }
 
-      // Fetch blocked users
       const { data: blocks } = await supabase
         .from('blocks')
         .select(`
@@ -51,7 +47,6 @@ export default function SettingsScreen() {
 
       setBlockedUsers(blocks || []);
 
-      // Fetch liked users
       const { data: likes } = await supabase
         .from('swipes')
         .select(`
@@ -146,6 +141,15 @@ export default function SettingsScreen() {
 
   return (
     <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
+      {/* Logo Header */}
+      <View style={styles.logoHeader}>
+        <Image 
+          source={require('../../assets/images/logo.png')} 
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Settings</Text>
@@ -154,6 +158,24 @@ export default function SettingsScreen() {
         {/* Profile Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Profile</Text>
+          
+          <TouchableOpacity 
+            style={styles.card}
+            onPress={() => router.push('/profile/edit-pfp')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="camera-outline" size={20} color={Colors.primary.navy} />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>Change Profile Picture</Text>
+                <Text style={styles.cardSubtitle}>Crop and adjust your main photo</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.neutral.grey} />
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity 
             style={styles.card}
             onPress={() => router.push('/profile/edit')}
@@ -342,8 +364,17 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 60 },
+  logoHeader: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  logoImage: {
+    width: 120,
+    height: 40,
+  },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
-  header: { marginBottom: 24 },
+  header: { marginBottom: 24, marginTop: 16 },
   headerTitle: { fontSize: 32, fontWeight: '800', color: Colors.primary.navy },
   section: { marginBottom: 32 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.neutral.grey, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },

@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Slot, useRouter, useSegments, usePathname } from 'expo-router';
+// app/_layout.tsx
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
-import { View, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Slot, useRouter, useSegments } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Image } from 'react-native';
 import { Colors } from '../constants/Colors';
+import { supabase } from '../lib/supabase';
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -13,7 +15,6 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
 
-  // Helper to fetch profile status
   const checkOnboardingStatus = async (userId: string) => {
     try {
       console.log("Checking DB status for:", userId);
@@ -38,11 +39,9 @@ export default function RootLayout() {
       try {
         console.log("1. App Initializing...");
         
-        // 1. Get Session
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
 
-        // 2. If User, Check Profile
         if (session) {
           console.log("2. User found, checking profile...");
           const isComplete = await checkOnboardingStatus(session.user.id);
@@ -53,7 +52,6 @@ export default function RootLayout() {
       } catch (e) {
         console.error("Init error:", e);
       } finally {
-        // 3. CRITICAL: Always finish loading!
         console.log("3. Data Load Complete.");
         setDataLoaded(true);
       }
@@ -61,14 +59,11 @@ export default function RootLayout() {
 
     initialize();
 
-    // Listen for Auth Changes (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth Event:", event);
       setSession(session);
       
       if (session) {
-        // If we just logged in, checking profile might take a moment
-        // We don't block the UI here, just update state when ready
         checkOnboardingStatus(session.user.id).then(isComplete => {
           setOnboardingComplete(isComplete);
         });
@@ -80,7 +75,6 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // NAVIGATION PROTECTION LOGIC
   useEffect(() => {
     if (!dataLoaded) return;
 
@@ -90,7 +84,6 @@ export default function RootLayout() {
 
     const protectRoute = async () => {
       if (session) {
-        // If we think we are incomplete, but trying to go to tabs, DOUBLE CHECK
         if (!onboardingComplete && inTabsGroup) {
            console.log("Double checking onboarding status...");
            const recheck = await checkOnboardingStatus(session.user.id);
@@ -101,18 +94,15 @@ export default function RootLayout() {
         }
 
         if (onboardingComplete) {
-          // If done, kick out of onboarding/login
           if (inAuthGroup || inOnboardingGroup) {
             router.replace('/(tabs)'); 
           }
         } else {
-          // If not done, kick out of tabs
           if (!inOnboardingGroup) {
             router.replace('/onboarding/step0');
           }
         }
       } else {
-        // Not logged in
         if (!inAuthGroup) {
           router.replace('/(auth)/login');
         }
@@ -125,9 +115,17 @@ export default function RootLayout() {
 
   if (!dataLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary.navy }}>
+      <LinearGradient 
+        colors={Colors.gradient.adventure}
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+      >
+        <Image 
+          source={require('../assets/images/logo.png')}
+          style={{ width: 200, height: 80, marginBottom: 40 }}
+          resizeMode="contain"
+        />
         <ActivityIndicator size="large" color={Colors.highlight.gold} />
-      </View>
+      </LinearGradient>
     );
   }
 

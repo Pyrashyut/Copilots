@@ -1,11 +1,11 @@
 // app/(auth)/sign-up.tsx
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/Colors';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Colors } from '../../constants/Colors';
+import { supabase } from '../../lib/supabase';
 
 export default function SignUp() {
   const router = useRouter();
@@ -58,6 +58,14 @@ export default function SignUp() {
           >
             <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
           </TouchableOpacity>
+
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../../assets/images/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
           <View style={styles.headerContainer}>
             <Text style={styles.header}>Join the Fleet</Text>
@@ -162,6 +170,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 180,
+    height: 60,
   },
   headerContainer: {
     marginBottom: 40,
