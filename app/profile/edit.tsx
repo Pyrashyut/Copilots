@@ -23,6 +23,24 @@ import { supabase } from '../../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
+const TRAVEL_TRAITS = [
+  { id: 'planning', left: 'Strict Planner', right: 'Go with Flow' },
+  { id: 'budget', left: 'Backpacker', right: 'Luxury' },
+  { id: 'morning', left: 'Early Bird', right: 'Night Owl' },
+  { id: 'pacing', left: 'Relaxed', right: 'Action Packed' },
+];
+
+const EXPERIENCES = [
+  'Skydiving',
+  'Street Food Tours',
+  'Luxury Resorts',
+  'Hiking / Trekking',
+  'Art Museums',
+  'Nightlife / Clubbing'
+];
+
+const EXPERIENCE_OPTIONS = ['Love it', 'Want to try', 'Not for me'];
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
@@ -35,7 +53,10 @@ export default function EditProfileScreen() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [cropImage, setCropImage] = useState<string | null>(null);
+  
+  // Travel preferences
+  const [travelTraits, setTravelTraits] = useState<Record<string, string>>({});
+  const [experienceMatrix, setExperienceMatrix] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchProfile();
@@ -60,6 +81,8 @@ export default function EditProfileScreen() {
         setLocation(data.location || '');
         setAge(data.age?.toString() || '');
         setImages(data.photos || []);
+        setTravelTraits(data.travel_traits || {});
+        setExperienceMatrix(data.preferences || {});
       }
     } catch (error) {
       console.error('Fetch error:', error);
@@ -95,7 +118,6 @@ export default function EditProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      // Resize image
       const resizedImage = await manipulateAsync(
         uri,
         [{ resize: { width: 800 } }],
@@ -154,6 +176,14 @@ export default function EditProfileScreen() {
     setImages(newImages);
   };
 
+  const selectTrait = (id: string, value: string) => {
+    setTravelTraits(prev => ({ ...prev, [id]: value }));
+  };
+
+  const setExperienceRating = (item: string, rating: string) => {
+    setExperienceMatrix(prev => ({ ...prev, [item]: rating }));
+  };
+
   const saveProfile = async () => {
     if (!username.trim()) {
       Alert.alert('Missing Info', 'Please add a username.');
@@ -177,7 +207,9 @@ export default function EditProfileScreen() {
           job_title: jobTitle.trim(),
           location: location.trim(),
           age: age ? parseInt(age) : null,
-          photos: images
+          photos: images,
+          travel_traits: travelTraits,
+          preferences: experienceMatrix
         })
         .eq('id', user.id);
 
@@ -276,6 +308,8 @@ export default function EditProfileScreen() {
           </View>
 
           {/* Basic Info */}
+          <Text style={styles.sectionHeader}>Basic Information</Text>
+          
           <View style={styles.section}>
             <Text style={styles.label}>Username</Text>
             <View style={styles.inputWrapper}>
@@ -344,6 +378,61 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
+          {/* Travel Style Section */}
+          <Text style={styles.sectionHeader}>Travel Style</Text>
+          <Text style={styles.sectionSubtext}>How do you prefer to travel?</Text>
+
+          {TRAVEL_TRAITS.map((trait) => (
+            <View key={trait.id} style={styles.traitRow}>
+              <TouchableOpacity 
+                style={[styles.traitOption, travelTraits[trait.id] === 'left' && styles.selectedLeft]}
+                onPress={() => selectTrait(trait.id, 'left')}
+              >
+                <Text style={[styles.traitText, travelTraits[trait.id] === 'left' && styles.selectedText]}>
+                  {trait.left}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <TouchableOpacity 
+                style={[styles.traitOption, travelTraits[trait.id] === 'right' && styles.selectedRight]}
+                onPress={() => selectTrait(trait.id, 'right')}
+              >
+                <Text style={[styles.traitText, travelTraits[trait.id] === 'right' && styles.selectedText]}>
+                  {trait.right}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {/* Experience Matrix Section */}
+          <Text style={styles.sectionHeader}>Experience Matrix</Text>
+          <Text style={styles.sectionSubtext}>Rate these activities to find your match</Text>
+
+          {EXPERIENCES.map((item) => (
+            <View key={item} style={styles.experienceCard}>
+              <Text style={styles.experienceTitle}>{item}</Text>
+              <View style={styles.experienceOptions}>
+                {EXPERIENCE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.experienceChip,
+                      experienceMatrix[item] === opt && styles.selectedExperienceChip
+                    ]}
+                    onPress={() => setExperienceRating(item, opt)}
+                  >
+                    <Text style={[
+                      styles.experienceChipText,
+                      experienceMatrix[item] === opt && styles.selectedExperienceChipText
+                    ]}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ))}
+
           <TouchableOpacity
             style={styles.saveButton}
             onPress={saveProfile}
@@ -406,7 +495,19 @@ const styles = StyleSheet.create({
   backButton: { width: 40 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.primary.navy },
   scrollContent: { padding: 24, paddingBottom: 40 },
-  section: { marginBottom: 24 },
+  section: { marginBottom: 20 },
+  sectionHeader: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.primary.navy,
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  sectionSubtext: {
+    fontSize: 14,
+    color: Colors.neutral.grey,
+    marginBottom: 16,
+  },
   label: { fontSize: 16, fontWeight: '700', color: Colors.primary.navy, marginBottom: 12 },
   labelRow: {
     flexDirection: 'row',
@@ -486,11 +587,100 @@ const styles = StyleSheet.create({
   input: { flex: 1, paddingVertical: 16, fontSize: 16, color: Colors.primary.navy },
   textAreaWrapper: { alignItems: 'flex-start', paddingVertical: 8 },
   textArea: { height: 100, textAlignVertical: 'top' },
+
+  // Travel Traits
+  traitRow: {
+    flexDirection: 'row',
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 50,
+    marginBottom: 12,
+    height: 56,
+    alignItems: 'center',
+    padding: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  traitOption: {
+    flex: 1,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 46,
+  },
+  divider: {
+    width: 1,
+    height: '60%',
+    backgroundColor: '#eee',
+  },
+  traitText: {
+    color: Colors.neutral.grey,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  selectedLeft: {
+    backgroundColor: Colors.primary.navy,
+  },
+  selectedRight: {
+    backgroundColor: Colors.primary.navy,
+  },
+  selectedText: {
+    color: Colors.neutral.white,
+  },
+
+  // Experience Matrix
+  experienceCard: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: Colors.shadow.light,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  experienceTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary.navy,
+    marginBottom: 12,
+  },
+  experienceOptions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  experienceChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.neutral.trailDust,
+    borderWidth: 1,
+    borderColor: Colors.neutral.border,
+    alignItems: 'center',
+  },
+  selectedExperienceChip: {
+    backgroundColor: Colors.primary.navy,
+    borderColor: Colors.primary.navy,
+  },
+  experienceChipText: {
+    fontSize: 12,
+    color: Colors.neutral.grey,
+    fontWeight: '600',
+  },
+  selectedExperienceChipText: {
+    color: Colors.neutral.white,
+    fontWeight: 'bold',
+  },
   
   saveButton: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginTop: 16,
+    marginTop: 24,
   },
   saveGradient: {
     paddingVertical: 18,

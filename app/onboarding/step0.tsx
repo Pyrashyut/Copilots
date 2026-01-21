@@ -1,24 +1,24 @@
 // app/onboarding/step0.tsx
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Image, 
-  Alert, 
-  ActivityIndicator, 
-  ScrollView,
-  Modal
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '../../constants/Colors';
+import { supabase } from '../../lib/supabase';
 
 export default function OnboardingStep0() {
   const router = useRouter();
@@ -97,7 +97,7 @@ export default function OnboardingStep0() {
     setImages(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  const nextStep = async () => {
+  const finishOnboarding = async () => {
     if (!username.trim()) {
       Alert.alert('Missing Info', 'Please add a username.');
       return;
@@ -120,7 +120,8 @@ export default function OnboardingStep0() {
         .from('profiles')
         .update({
           username: username.trim(),
-          photos: images
+          photos: images,
+          onboarding_complete: true
         })
         .eq('id', user.id);
 
@@ -131,7 +132,30 @@ export default function OnboardingStep0() {
           Alert.alert('Save Failed', error.message);
         }
       } else {
-        router.push('/onboarding/step1');
+        // Refresh session first
+        await supabase.auth.refreshSession();
+        
+        // Show success message with reminder to complete profile
+        Alert.alert(
+          '🎉 Welcome Aboard!', 
+          'Your account is ready! Would you like to complete your profile now to get better matches?',
+          [
+            { 
+              text: 'Complete Profile Now', 
+              onPress: () => {
+                // Use push instead of replace to ensure navigation works
+                router.push('/profile/edit');
+              }
+            },
+            { 
+              text: 'Maybe Later', 
+              onPress: () => {
+                router.replace('/(tabs)');
+              },
+              style: 'cancel'
+            }
+          ]
+        );
       }
     } catch (e) {
       console.error("Error:", e);
@@ -145,11 +169,11 @@ export default function OnboardingStep0() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.headerSection}>
           <View style={styles.stepIndicator}>
-            <Text style={styles.stepText}>Step 1 of 4</Text>
+            <Text style={styles.stepText}>Final Step</Text>
           </View>
-          <Text style={styles.header}>Your Identity</Text>
+          <Text style={styles.header}>Complete Your Profile</Text>
           <Text style={styles.subHeader}>
-            Choose a unique username and showcase your travel personality with photos.
+            Add a username and photos to get started. You can add more details later in your profile settings.
           </Text>
         </View>
 
@@ -230,10 +254,10 @@ export default function OnboardingStep0() {
           )}
         </View>
 
-        {/* Next Button */}
+        {/* Finish Button */}
         <TouchableOpacity
           style={styles.button}
-          onPress={nextStep}
+          onPress={finishOnboarding}
           disabled={saving || uploading}
           activeOpacity={0.8}
         >
@@ -247,12 +271,16 @@ export default function OnboardingStep0() {
               <ActivityIndicator color={Colors.neutral.white} />
             ) : (
               <>
-                <Text style={styles.buttonText}>Continue</Text>
+                <Text style={styles.buttonText}>Get Started</Text>
                 <Ionicons name="arrow-forward" size={20} color={Colors.neutral.white} />
               </>
             )}
           </LinearGradient>
         </TouchableOpacity>
+
+        <Text style={styles.footerText}>
+          ℹ️ You can add more details like bio, location, and preferences in your profile settings anytime.
+        </Text>
       </ScrollView>
 
       {/* Full Screen Image Modal */}
@@ -446,6 +474,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
     marginTop: 8,
+    marginBottom: 16,
   },
   buttonGradient: {
     flexDirection: 'row',
@@ -458,6 +487,12 @@ const styles = StyleSheet.create({
     color: Colors.neutral.white,
     fontWeight: '700',
     fontSize: 17,
+  },
+  footerText: {
+    fontSize: 13,
+    color: Colors.neutral.grey,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   modalContainer: {
     flex: 1,

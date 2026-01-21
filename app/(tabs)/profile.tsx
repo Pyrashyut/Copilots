@@ -1,12 +1,14 @@
 // app/(tabs)/profile.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/Colors';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Colors } from '../../constants/Colors';
+import { supabase } from '../../lib/supabase';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,6 +53,14 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleEditProfile = () => {
+    router.push('/profile/edit');
+  };
+
+  const handleSettings = () => {
+    router.push('/(tabs)/settings');
+  };
+
   if (loading) {
     return (
       <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
@@ -72,6 +82,7 @@ export default function ProfileScreen() {
           <Text style={styles.headerTitle}>Profile</Text>
           <TouchableOpacity 
             style={styles.settingsButton}
+            onPress={handleSettings}
             activeOpacity={0.8}
           >
             <Ionicons name="settings-outline" size={24} color={Colors.primary.navy} />
@@ -99,7 +110,10 @@ export default function ProfileScreen() {
                 )}
               </View>
             </LinearGradient>
-            <TouchableOpacity style={styles.editPhotoButton}>
+            <TouchableOpacity 
+              style={styles.editPhotoButton}
+              onPress={() => router.push('/profile/edit-pfp')}
+            >
               <Ionicons name="camera" size={16} color={Colors.neutral.white} />
             </TouchableOpacity>
           </View>
@@ -181,10 +195,21 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Incomplete Profile Notice */}
+        {(!profile?.bio || !profile?.job_title || !profile?.location) && (
+          <View style={styles.noticeCard}>
+            <Ionicons name="information-circle" size={24} color={Colors.highlight.warning} />
+            <Text style={styles.noticeText}>
+              Complete your profile to get better matches!
+            </Text>
+          </View>
+        )}
+
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.editButton}
+            onPress={handleEditProfile}
             activeOpacity={0.8}
           >
             <Ionicons name="create-outline" size={20} color={Colors.primary.navy} />
@@ -409,6 +434,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.primary.navy,
+  },
+  noticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 165, 2, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 165, 2, 0.3)',
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.primary.navy,
+    fontWeight: '600',
   },
   actionButtons: {
     gap: 12,
