@@ -120,6 +120,11 @@ export default function DiscoverScreen() {
         colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
         style={styles.center}
       >
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.logoLoader}
+          resizeMode="contain"
+        />
         <ActivityIndicator size="large" color={Colors.highlight.gold} />
         <Text style={styles.loadingText}>Finding your copilots...</Text>
       </LinearGradient>
@@ -206,6 +211,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  logoLoader: {
+    width: 200,
+    height: 80,
+    marginBottom: 20,
   },
 
   /* HEADER FIX */

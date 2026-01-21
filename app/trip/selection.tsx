@@ -1,8 +1,9 @@
+// app/trip/selection.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
@@ -137,7 +138,22 @@ export default function TripSelection() {
     ]);
   };
 
-  if (loading) return <ActivityIndicator style={{flex:1, marginTop: 50}} color={Colors.highlight.gold} />;
+  if (loading) {
+    return (
+      <LinearGradient 
+        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]} 
+        locations={[0, 0.5, 1]}
+        style={styles.center}
+      >
+        <Image 
+          source={require('../../assets/images/logo.png')}
+          style={styles.logoLoader}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color={Colors.highlight.gold} />
+      </LinearGradient>
+    );
+  }
 
   if (booking) {
     const isMyInvite = booking.invited_by === currentUser.id;
@@ -261,6 +277,18 @@ export default function TripSelection() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  
+  logoLoader: {
+    width: 200,
+    height: 80,
+    marginBottom: 20,
+  },
+
   // Background Decorations
   bgDecoration1: {
     position: 'absolute',

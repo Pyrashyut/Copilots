@@ -68,6 +68,11 @@ export default function ProfileScreen() {
         locations={[0, 0.5, 1]}
         style={styles.center}
       >
+        <Image 
+          source={require('../../assets/images/logo.png')}
+          style={styles.logoLoader}
+          resizeMode="contain"
+        />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </LinearGradient>
     );
@@ -257,6 +262,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  logoLoader: {
+    width: 200,
+    height: 80,
+    marginBottom: 20,
   },
   loadingText: {
     fontSize: 16,

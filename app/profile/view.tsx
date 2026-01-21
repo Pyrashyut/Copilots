@@ -197,6 +197,11 @@ export default function ViewProfileScreen() {
         colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
         style={styles.center}
       >
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.logoLoader}
+          resizeMode="contain"
+        />
         <ActivityIndicator size="large" color={Colors.highlight.gold} />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </LinearGradient>
@@ -246,7 +251,7 @@ export default function ViewProfileScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Photo card – with breathing room on sides */}
+          {/* Photo card */}
           <View style={styles.photoCard}>
             {profile.photos && profile.photos.length > 0 ? (
               <>
@@ -325,13 +330,15 @@ export default function ViewProfileScreen() {
               </View>
             )}
 
+            {/* UPDATED PREFERENCES SECTION */}
             {profile.preferences && Object.keys(profile.preferences).length > 0 && (
               <View style={styles.preferencesSection}>
                 <Text style={styles.sectionTitle}>Travel Preferences</Text>
                 <View style={styles.preferencesGrid}>
                   {Object.entries(profile.preferences).map(([key, value]) => (
                     <View key={key} style={styles.preferenceChip}>
-                      <Text style={styles.preferenceText}>{value as string}</Text>
+                      <Text style={styles.preferenceLabel}>{key}</Text>
+                      <Text style={styles.preferenceValue}>{value as string}</Text>
                     </View>
                   ))}
                 </View>
@@ -400,6 +407,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  
+  logoLoader: {
+    width: 180,
+    height: 60,
+    marginBottom: 24,
+  },
 
   header: {
     height: 110,
@@ -435,11 +448,8 @@ const styles = StyleSheet.create({
     paddingBottom: 160,
   },
 
-  // ────────────────────────────────────────────────
-  // Photo Card (with margins → not edge-to-edge)
-  // ────────────────────────────────────────────────
   photoCard: {
-    marginHorizontal: 24,              // ← key: space from screen edges
+    marginHorizontal: 24,
     marginTop: 12,
     marginBottom: 28,
     borderRadius: 32,
@@ -456,7 +466,7 @@ const styles = StyleSheet.create({
 
   mainPhoto: {
     width: '100%',
-    height: width * 1.15,              // slightly shorter than before
+    height: width * 1.15,
     borderRadius: 32,
   },
 
@@ -500,9 +510,6 @@ const styles = StyleSheet.create({
   photoNavLeft: { left: 16 },
   photoNavRight: { right: 16 },
 
-  // ────────────────────────────────────────────────
-  // Glass Plate (all details here – no overlays on image)
-  // ────────────────────────────────────────────────
   glassPlate: {
     marginHorizontal: 24,
     marginBottom: 140,
@@ -569,22 +576,29 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
+  // UPDATED STYLES FOR PREFERENCES
   preferenceChip: {
     backgroundColor: 'rgba(255,255,255,0.16)',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
+    minWidth: '45%',
   },
-
-  preferenceText: {
-    fontSize: 14,
-    color: Colors.neutral.white,
+  preferenceLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
     fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  preferenceValue: {
+    fontSize: 15,
+    color: Colors.neutral.white,
+    fontWeight: '700',
   },
 
-  // Bottom actions (unchanged – already good)
   actionsContainer: {
     paddingBottom: 38,
     paddingTop: 12,
