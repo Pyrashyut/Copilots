@@ -58,6 +58,10 @@ export default function EditProfileScreen() {
   const [travelTraits, setTravelTraits] = useState<Record<string, string>>({});
   const [experienceMatrix, setExperienceMatrix] = useState<Record<string, string>>({});
 
+  // Collapsible sections state
+  const [travelStyleExpanded, setTravelStyleExpanded] = useState(false);
+  const [experienceMatrixExpanded, setExperienceMatrixExpanded] = useState(false);
+
   useEffect(() => {
     fetchProfile();
   }, []);
@@ -230,6 +234,14 @@ export default function EditProfileScreen() {
     }
   };
 
+  const getTravelTraitsCount = () => {
+    return Object.keys(travelTraits).length;
+  };
+
+  const getExperienceCount = () => {
+    return Object.keys(experienceMatrix).length;
+  };
+
   return (
     <LinearGradient colors={[Colors.neutral.trailDust, Colors.neutral.white]} style={styles.container}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -378,60 +390,108 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
-          {/* Travel Style Section */}
-          <Text style={styles.sectionHeader}>Travel Style</Text>
-          <Text style={styles.sectionSubtext}>How do you prefer to travel?</Text>
-
-          {TRAVEL_TRAITS.map((trait) => (
-            <View key={trait.id} style={styles.traitRow}>
-              <TouchableOpacity 
-                style={[styles.traitOption, travelTraits[trait.id] === 'left' && styles.selectedLeft]}
-                onPress={() => selectTrait(trait.id, 'left')}
-              >
-                <Text style={[styles.traitText, travelTraits[trait.id] === 'left' && styles.selectedText]}>
-                  {trait.left}
+          {/* Travel Style Section - Collapsible */}
+          <TouchableOpacity 
+            style={styles.collapsibleHeader}
+            onPress={() => setTravelStyleExpanded(!travelStyleExpanded)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.collapsibleHeaderLeft}>
+              <Ionicons 
+                name={travelStyleExpanded ? "chevron-down" : "chevron-forward"} 
+                size={24} 
+                color={Colors.primary.navy} 
+              />
+              <View>
+                <Text style={styles.sectionHeader}>Travel Style</Text>
+                <Text style={styles.collapsibleSubtext}>
+                  {getTravelTraitsCount()}/{TRAVEL_TRAITS.length} selected
                 </Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-
-              <TouchableOpacity 
-                style={[styles.traitOption, travelTraits[trait.id] === 'right' && styles.selectedRight]}
-                onPress={() => selectTrait(trait.id, 'right')}
-              >
-                <Text style={[styles.traitText, travelTraits[trait.id] === 'right' && styles.selectedText]}>
-                  {trait.right}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-
-          {/* Experience Matrix Section */}
-          <Text style={styles.sectionHeader}>Experience Matrix</Text>
-          <Text style={styles.sectionSubtext}>Rate these activities to find your match</Text>
-
-          {EXPERIENCES.map((item) => (
-            <View key={item} style={styles.experienceCard}>
-              <Text style={styles.experienceTitle}>{item}</Text>
-              <View style={styles.experienceOptions}>
-                {EXPERIENCE_OPTIONS.map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[
-                      styles.experienceChip,
-                      experienceMatrix[item] === opt && styles.selectedExperienceChip
-                    ]}
-                    onPress={() => setExperienceRating(item, opt)}
-                  >
-                    <Text style={[
-                      styles.experienceChipText,
-                      experienceMatrix[item] === opt && styles.selectedExperienceChipText
-                    ]}>{opt}</Text>
-                  </TouchableOpacity>
-                ))}
               </View>
             </View>
-          ))}
+            <Ionicons name="airplane" size={20} color={Colors.primary.navy} />
+          </TouchableOpacity>
+
+          {travelStyleExpanded && (
+            <View style={styles.collapsibleContent}>
+              <Text style={styles.sectionSubtext}>How do you prefer to travel?</Text>
+
+              {TRAVEL_TRAITS.map((trait) => (
+                <View key={trait.id} style={styles.traitRow}>
+                  <TouchableOpacity 
+                    style={[styles.traitOption, travelTraits[trait.id] === 'left' && styles.selectedLeft]}
+                    onPress={() => selectTrait(trait.id, 'left')}
+                  >
+                    <Text style={[styles.traitText, travelTraits[trait.id] === 'left' && styles.selectedText]}>
+                      {trait.left}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.divider} />
+
+                  <TouchableOpacity 
+                    style={[styles.traitOption, travelTraits[trait.id] === 'right' && styles.selectedRight]}
+                    onPress={() => selectTrait(trait.id, 'right')}
+                  >
+                    <Text style={[styles.traitText, travelTraits[trait.id] === 'right' && styles.selectedText]}>
+                      {trait.right}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Experience Matrix Section - Collapsible */}
+          <TouchableOpacity 
+            style={styles.collapsibleHeader}
+            onPress={() => setExperienceMatrixExpanded(!experienceMatrixExpanded)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.collapsibleHeaderLeft}>
+              <Ionicons 
+                name={experienceMatrixExpanded ? "chevron-down" : "chevron-forward"} 
+                size={24} 
+                color={Colors.primary.navy} 
+              />
+              <View>
+                <Text style={styles.sectionHeader}>Experience Matrix</Text>
+                <Text style={styles.collapsibleSubtext}>
+                  {getExperienceCount()}/{EXPERIENCES.length} rated
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="star" size={20} color={Colors.primary.navy} />
+          </TouchableOpacity>
+
+          {experienceMatrixExpanded && (
+            <View style={styles.collapsibleContent}>
+              <Text style={styles.sectionSubtext}>Rate these activities to find your match</Text>
+
+              {EXPERIENCES.map((item) => (
+                <View key={item} style={styles.experienceCard}>
+                  <Text style={styles.experienceTitle}>{item}</Text>
+                  <View style={styles.experienceOptions}>
+                    {EXPERIENCE_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[
+                          styles.experienceChip,
+                          experienceMatrix[item] === opt && styles.selectedExperienceChip
+                        ]}
+                        onPress={() => setExperienceRating(item, opt)}
+                      >
+                        <Text style={[
+                          styles.experienceChipText,
+                          experienceMatrix[item] === opt && styles.selectedExperienceChipText
+                        ]}>{opt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
 
           <TouchableOpacity
             style={styles.saveButton}
@@ -500,8 +560,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: Colors.primary.navy,
-    marginTop: 24,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   sectionSubtext: {
     fontSize: 14,
@@ -587,6 +646,37 @@ const styles = StyleSheet.create({
   input: { flex: 1, paddingVertical: 16, fontSize: 16, color: Colors.primary.navy },
   textAreaWrapper: { alignItems: 'flex-start', paddingVertical: 8 },
   textArea: { height: 100, textAlignVertical: 'top' },
+
+  // Collapsible sections
+  collapsibleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.neutral.white,
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 24,
+    marginBottom: 8,
+    shadowColor: Colors.shadow.light,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  collapsibleHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  collapsibleSubtext: {
+    fontSize: 12,
+    color: Colors.neutral.grey,
+    marginTop: 2,
+  },
+  collapsibleContent: {
+    marginBottom: 16,
+  },
 
   // Travel Traits
   traitRow: {

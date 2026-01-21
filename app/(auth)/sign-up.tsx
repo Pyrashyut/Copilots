@@ -32,7 +32,7 @@ export default function SignUp() {
       setLoading(false);
     } else {
       Alert.alert('Success! 🎉', 'Check your inbox for email verification!', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => router.replace('/(auth)/login') }
       ]);
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function SignUp() {
           keyboardShouldPersistTaps="handled"
         >
           <TouchableOpacity 
-            onPress={() => router.back()} 
+            onPress={() => router.replace('/(auth)/login')} 
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
@@ -138,7 +138,7 @@ export default function SignUp() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => router.back()} style={styles.linkButton}>
+            <TouchableOpacity onPress={() => router.replace('/(auth)/login')} style={styles.linkButton}>
               <Text style={styles.linkText}>
                 Already have an account? <Text style={styles.linkTextBold}>Sign In</Text>
               </Text>
