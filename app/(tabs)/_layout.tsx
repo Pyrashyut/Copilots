@@ -1,8 +1,8 @@
 // app/(tabs)/_layout.tsx
-import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/Colors';
+import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
+import { Colors } from '../../constants/Colors';
 
 export default function TabLayout() {
   return (
@@ -67,6 +67,19 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? "person" : "person-outline"} 
+              size={28} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "settings" : "settings-outline"} 
               size={28} 
               color={color} 
             />

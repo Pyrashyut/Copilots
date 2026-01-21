@@ -1,13 +1,15 @@
-// app/(tabs)/index.tsx
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/Colors';
-import SwipeCard from '../../components/SwipeCard';
+// app/(tabs)/index.tsx - Updated with profile viewing
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import SwipeCard from '../../components/SwipeCard';
+import { Colors } from '../../constants/Colors';
+import { supabase } from '../../lib/supabase';
 
 export default function DiscoverScreen() {
+  const router = useRouter();
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -21,18 +23,34 @@ export default function DiscoverScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get all IDs to exclude: swiped users, blocked users, and users who blocked me
       const { data: swipes } = await supabase
         .from('swipes')
         .select('likee_id')
         .eq('liker_id', user.id);
 
-      const swipedIds = swipes?.map(s => s.likee_id) || [];
-      swipedIds.push(user.id);
+      const { data: blockedByMe } = await supabase
+        .from('blocks')
+        .select('blocked_id')
+        .eq('blocker_id', user.id);
 
+      const { data: blockedMe } = await supabase
+        .from('blocks')
+        .select('blocker_id')
+        .eq('blocked_id', user.id);
+
+      const swipedIds = swipes?.map(s => s.likee_id) || [];
+      const blockedByMeIds = blockedByMe?.map(b => b.blocked_id) || [];
+      const blockedMeIds = blockedMe?.map(b => b.blocker_id) || [];
+      
+      const excludeIds = [...new Set([...swipedIds, ...blockedByMeIds, ...blockedMeIds, user.id])];
+
+      // Fetch visible profiles only
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .not('id', 'in', `(${swipedIds.join(',')})`)
+        .not('id', 'in', `(${excludeIds.join(',')})`)
+        .eq('is_visible', true)
         .limit(10);
 
       if (error) throw error;
@@ -80,6 +98,12 @@ export default function DiscoverScreen() {
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const viewProfile = () => {
+    if (profiles.length === 0 || currentIndex >= profiles.length) return;
+    const currentProfile = profiles[currentIndex];
+    router.push({ pathname: '/profile/view', params: { userId: currentProfile.id } });
   };
 
   if (loading) {
@@ -137,6 +161,21 @@ export default function DiscoverScreen() {
       {/* Card Container */}
       <View style={styles.cardContainer}>
         <SwipeCard profile={profiles[currentIndex]} />
+        
+        {/* View Profile Button Overlay */}
+        <TouchableOpacity 
+          style={styles.viewProfileBtn}
+          onPress={viewProfile}
+          activeOpacity={0.9}
+        >
+          <LinearGradient
+            colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.8)']}
+            style={styles.viewProfileGradient}
+          >
+            <Ionicons name="information-circle" size={24} color={Colors.neutral.white} />
+            <Text style={styles.viewProfileText}>View Full Profile</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
 
       {/* Action Buttons */}
@@ -155,15 +194,15 @@ export default function DiscoverScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.actionButton, styles.superLikeButton]} 
-          onPress={() => handleSwipe('right')}
+          style={[styles.actionButton, styles.infoButton]} 
+          onPress={viewProfile}
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={Colors.gradient.sunset}
+            colors={['#4ECDC4', '#3BB5AD']}
             style={styles.buttonGradient}
           >
-            <Ionicons name="star" size={28} color={Colors.neutral.white} />
+            <Ionicons name="information" size={28} color={Colors.neutral.white} />
           </LinearGradient>
         </TouchableOpacity>
 
@@ -227,6 +266,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  viewProfileBtn: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  viewProfileGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  viewProfileText: {
+    color: Colors.neutral.white,
+    fontWeight: '700',
+    fontSize: 16,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -247,7 +307,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  superLikeButton: {
+  infoButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
