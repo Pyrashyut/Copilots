@@ -10,10 +10,14 @@ import {
   Alert,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
-  Text, TextInput,
+  Switch,
+  Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -21,7 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const TRAVEL_TRAITS = [
   { id: 'planning', left: 'Strict Planner', right: 'Go with Flow' },
@@ -47,13 +51,20 @@ export default function EditProfileScreen() {
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [jobTitle, setJobTitle] = useState('');
-  const [location, setLocation] = useState('');
   const [age, setAge] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
+  // Location State
+  const [location, setLocation] = useState('');
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationType, setLocationType] = useState<'standard' | 'remote'>('standard');
+  const [remoteScope, setRemoteScope] = useState<'anywhere' | 'country'>('anywhere');
+  const [tempCity, setTempCity] = useState('');
+  const [tempCountry, setTempCountry] = useState('');
+
   const [travelTraits, setTravelTraits] = useState<Record<string, string>>({});
   const [experienceMatrix, setExperienceMatrix] = useState<Record<string, string>>({});
   const [travelStyleExpanded, setTravelStyleExpanded] = useState(false);
@@ -84,6 +95,21 @@ export default function EditProfileScreen() {
         setImages(data.photos || []);
         setTravelTraits(data.travel_traits || {});
         setExperienceMatrix(data.preferences || {});
+
+        const loc = data.location || '';
+        if (loc.startsWith('Remote')) {
+          setLocationType('remote');
+          if (loc.includes('Anywhere')) {
+            setRemoteScope('anywhere');
+          } else {
+            setRemoteScope('country');
+            const match = loc.match(/\(([^)]+)\)/);
+            if (match) setTempCountry(match[1]);
+          }
+        } else {
+          setLocationType('standard');
+          setTempCity(loc);
+        }
       }
     } catch (error) {
       console.error('Fetch error:', error);
@@ -185,6 +211,31 @@ export default function EditProfileScreen() {
     setExperienceMatrix(prev => ({ ...prev, [item]: rating }));
   };
 
+  const handleSaveLocation = () => {
+    let finalLocation = '';
+    
+    if (locationType === 'standard') {
+      if (!tempCity.trim()) {
+        Alert.alert('Required', 'Please enter your city/country');
+        return;
+      }
+      finalLocation = tempCity.trim();
+    } else {
+      if (remoteScope === 'anywhere') {
+        finalLocation = 'Remote (Anywhere)';
+      } else {
+        if (!tempCountry.trim()) {
+          Alert.alert('Required', 'Please enter a country');
+          return;
+        }
+        finalLocation = `Remote (${tempCountry.trim()})`;
+      }
+    }
+
+    setLocation(finalLocation);
+    setShowLocationModal(false);
+  };
+
   const saveProfile = async () => {
     if (!username.trim()) {
       Alert.alert('Missing Info', 'Please add a username.');
@@ -231,21 +282,15 @@ export default function EditProfileScreen() {
     }
   };
 
-  const getTravelTraitsCount = () => {
-    return Object.keys(travelTraits).length;
-  };
-
-  const getExperienceCount = () => {
-    return Object.keys(experienceMatrix).length;
-  };
+  const getTravelTraitsCount = () => Object.keys(travelTraits).length;
+  const getExperienceCount = () => Object.keys(experienceMatrix).length;
 
   return (
     <LinearGradient 
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
-      locations={[0, 0.3, 0.6, 1]}
+      colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]} 
+      locations={[0, 0.4, 1]}
       style={styles.container}
     >
-      {/* Decorative Background Elements */}
       <View style={styles.bgDecoration1} />
       <View style={styles.bgDecoration2} />
       
@@ -258,7 +303,7 @@ export default function EditProfileScreen() {
           <View style={{ width: 40 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Photos Section */}
           <View style={styles.section}>
             <View style={styles.labelRow}>
@@ -373,16 +418,22 @@ export default function EditProfileScreen() {
 
           <View style={styles.section}>
             <Text style={styles.label}>Location</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="location-outline" size={20} color={Colors.neutral.grey} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="London, UK"
-                placeholderTextColor={Colors.neutral.greyLight}
-                value={location}
-                onChangeText={setLocation}
+            <TouchableOpacity 
+              style={styles.inputWrapper} 
+              onPress={() => setShowLocationModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons 
+                name={location.startsWith('Remote') ? "laptop-outline" : "location-outline"} 
+                size={20} 
+                color={Colors.neutral.grey} 
+                style={styles.inputIcon} 
               />
-            </View>
+              <Text style={[styles.input, !location && { color: Colors.neutral.greyLight }]}>
+                {location || "Select your location..."}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={Colors.neutral.grey} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.section}>
@@ -524,7 +575,9 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Full Screen Image Modal */}
+        {/* --- MODALS --- */}
+
+        {/* 1. Full Screen Image Modal */}
         <Modal visible={!!selectedImage} transparent animationType="fade">
           <View style={styles.modalContainer}>
             <SafeAreaView style={styles.modalSafeArea}>
@@ -546,6 +599,137 @@ export default function EditProfileScreen() {
             </SafeAreaView>
           </View>
         </Modal>
+
+        {/* 2. Location Settings Modal (FIXED KEYBOARD AVOIDANCE) */}
+        <Modal visible={showLocationModal} transparent animationType="slide">
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalOverlay}
+          >
+            {/* Press to close area */}
+            <TouchableOpacity style={{flex: 1}} onPress={() => setShowLocationModal(false)} activeOpacity={1} />
+            
+            <View style={styles.locationModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Location Settings</Text>
+                <TouchableOpacity onPress={() => setShowLocationModal(false)}>
+                  <Ionicons name="close" size={24} color={Colors.primary.navy} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Location Type Toggle */}
+                <View style={styles.switchRow}>
+                  <View>
+                    <Text style={styles.switchLabel}>Remote / Digital Nomad</Text>
+                    <Text style={styles.switchSubLabel}>I work remotely or travel often</Text>
+                  </View>
+                  <Switch 
+                    value={locationType === 'remote'}
+                    onValueChange={(val) => setLocationType(val ? 'remote' : 'standard')}
+                    trackColor={{ false: Colors.neutral.greyLight, true: Colors.secondary.teal }}
+                    thumbColor={Colors.neutral.white}
+                  />
+                </View>
+
+                {/* Conditional Inputs */}
+                <View style={styles.modalBody}>
+                  {locationType === 'standard' ? (
+                    <View>
+                      <Text style={styles.inputLabel}>City & Country</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="e.g. London, UK"
+                        value={tempCity}
+                        onChangeText={setTempCity}
+                        autoFocus={true} 
+                      />
+                    </View>
+                  ) : (
+                    <View style={{ gap: 16 }}>
+                      <Text style={styles.inputLabel}>Remote Preference</Text>
+                      
+                      {/* Option 1: Anywhere */}
+                      <TouchableOpacity 
+                        style={[
+                          styles.remoteOptionCard, 
+                          remoteScope === 'anywhere' && styles.remoteOptionSelected
+                        ]}
+                        onPress={() => setRemoteScope('anywhere')}
+                      >
+                        <Ionicons 
+                          name="earth" 
+                          size={24} 
+                          color={remoteScope === 'anywhere' ? Colors.secondary.teal : Colors.neutral.grey} 
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[
+                            styles.remoteOptionTitle,
+                            remoteScope === 'anywhere' && { color: Colors.secondary.teal }
+                          ]}>
+                            Remote (Anywhere)
+                          </Text>
+                          <Text style={styles.remoteOptionDesc}>Open to travel anywhere</Text>
+                        </View>
+                        {remoteScope === 'anywhere' && (
+                          <Ionicons name="checkmark-circle" size={24} color={Colors.secondary.teal} />
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Option 2: Specific Country */}
+                      <TouchableOpacity 
+                        style={[
+                          styles.remoteOptionCard, 
+                          remoteScope === 'country' && styles.remoteOptionSelected,
+                          { flexDirection: 'column', alignItems: 'flex-start' }
+                        ]}
+                        onPress={() => setRemoteScope('country')}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, width: '100%' }}>
+                          <Ionicons 
+                            name="map" 
+                            size={24} 
+                            color={remoteScope === 'country' ? Colors.secondary.teal : Colors.neutral.grey} 
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[
+                              styles.remoteOptionTitle,
+                              remoteScope === 'country' && { color: Colors.secondary.teal }
+                            ]}>
+                              Remote (Specific Country)
+                            </Text>
+                          </View>
+                          {remoteScope === 'country' && (
+                            <Ionicons name="checkmark-circle" size={24} color={Colors.secondary.teal} />
+                          )}
+                        </View>
+
+                        {remoteScope === 'country' && (
+                          <TextInput
+                            style={[styles.modalInput, { width: '100%' }]}
+                            placeholder="Enter Country (e.g. Thailand)"
+                            value={tempCountry}
+                            onChangeText={setTempCountry}
+                            autoFocus={true}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+
+                <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveLocation}>
+                  <Text style={styles.modalSaveText}>Set Location</Text>
+                </TouchableOpacity>
+                <View style={{ height: 20 }} /> 
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
       </SafeAreaView>
     </LinearGradient>
   );
@@ -553,8 +737,6 @@ export default function EditProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  
-  // Background Decorations
   bgDecoration1: {
     position: 'absolute',
     top: -100,
@@ -562,7 +744,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+    backgroundColor: 'rgba(232, 117, 90, 0.1)', 
   },
   bgDecoration2: {
     position: 'absolute',
@@ -571,9 +753,8 @@ const styles = StyleSheet.create({
     width: 350,
     height: 350,
     borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+    backgroundColor: 'rgba(212, 175, 55, 0.08)', 
   },
-  
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -585,14 +766,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: Colors.neutral.white 
+    fontSize: 20, 
+    fontWeight: '800', 
+    color: Colors.primary.navy 
   },
   scrollContent: { 
     padding: 24, 
@@ -602,18 +783,18 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.neutral.white,
+    color: Colors.primary.navy,
     marginBottom: 4,
   },
   sectionSubtext: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: Colors.neutral.grey,
     marginBottom: 16,
   },
   label: { 
     fontSize: 16, 
     fontWeight: '700', 
-    color: Colors.neutral.white, 
+    color: Colors.primary.navy, 
     marginBottom: 12 
   },
   labelRow: {
@@ -623,19 +804,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   countBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(27, 58, 87, 0.1)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   countText: { 
-    color: Colors.neutral.white, 
+    color: Colors.primary.navy, 
     fontSize: 12, 
     fontWeight: '700' 
   },
-  
   photoScroll: { marginBottom: 12 },
   imageWrapper: { position: 'relative', marginRight: 12 },
   thumb: { 
@@ -667,7 +845,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   primaryText: { 
-    color: Colors.primary.navy, 
+    color: Colors.neutral.white, 
     fontSize: 10, 
     fontWeight: '700' 
   },
@@ -686,59 +864,54 @@ const styles = StyleSheet.create({
     width: 120,
     height: 160,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderColor: Colors.neutral.greyLight,
     borderStyle: 'dashed',
   },
   addText: { 
-    color: Colors.neutral.white, 
+    color: Colors.primary.navy, 
     fontSize: 12, 
     fontWeight: '600', 
     marginTop: 4 
   },
   helpText: { 
     fontSize: 13, 
-    color: 'rgba(255, 255, 255, 0.8)', 
+    color: Colors.neutral.grey, 
     lineHeight: 20 
   },
-  
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.neutral.white,
     borderRadius: 12,
     paddingHorizontal: 16,
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
+    paddingVertical: 14,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
   inputIcon: { marginRight: 12 },
   input: { 
     flex: 1, 
-    paddingVertical: 16, 
     fontSize: 16, 
     color: Colors.primary.navy 
   },
-  textAreaWrapper: { alignItems: 'flex-start', paddingVertical: 8 },
+  textAreaWrapper: { alignItems: 'flex-start', paddingVertical: 12 },
   textArea: { height: 100, textAlignVertical: 'top' },
-
-  // Collapsible sections
   collapsibleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: Colors.primary.navy,
     padding: 16,
     borderRadius: 12,
     marginTop: 24,
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
   },
   collapsibleHeaderLeft: {
     flexDirection: 'row',
@@ -754,8 +927,6 @@ const styles = StyleSheet.create({
   collapsibleContent: {
     marginBottom: 16,
   },
-
-  // Travel Traits
   traitRow: {
     flexDirection: 'row',
     backgroundColor: Colors.neutral.white,
@@ -796,8 +967,6 @@ const styles = StyleSheet.create({
   selectedText: {
     color: Colors.neutral.white,
   },
-
-  // Experience Matrix
   experienceCard: {
     backgroundColor: Colors.neutral.white,
     borderRadius: 12,
@@ -843,7 +1012,6 @@ const styles = StyleSheet.create({
     color: Colors.neutral.white,
     fontWeight: 'bold',
   },
-  
   saveButton: {
     borderRadius: 12,
     overflow: 'hidden',
@@ -863,7 +1031,6 @@ const styles = StyleSheet.create({
     fontWeight: '700', 
     fontSize: 17 
   },
-  
   modalContainer: { 
     flex: 1, 
     backgroundColor: 'rgba(0,0,0,0.95)', 
@@ -872,4 +1039,100 @@ const styles = StyleSheet.create({
   modalSafeArea: { flex: 1, justifyContent: 'center' },
   fullImage: { width: '100%', height: '80%' },
   closeModalBtn: { position: 'absolute', top: 50, right: 20, zIndex: 20 },
+
+  // Location Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  locationModalContent: {
+    backgroundColor: Colors.neutral.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.primary.navy,
+  },
+  modalBody: {
+    flex: 1,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    backgroundColor: Colors.neutral.trailDust,
+    padding: 16,
+    borderRadius: 12,
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.primary.navy,
+  },
+  switchSubLabel: {
+    fontSize: 12,
+    color: Colors.neutral.grey,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.neutral.greyDark,
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: Colors.neutral.trailDust,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: Colors.primary.navy,
+    borderWidth: 1,
+    borderColor: Colors.neutral.border,
+  },
+  remoteOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.neutral.border,
+    backgroundColor: Colors.neutral.white,
+  },
+  remoteOptionSelected: {
+    borderColor: Colors.secondary.teal,
+    backgroundColor: 'rgba(42, 157, 143, 0.05)',
+  },
+  remoteOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary.navy,
+  },
+  remoteOptionDesc: {
+    fontSize: 12,
+    color: Colors.neutral.grey,
+  },
+  modalSaveButton: {
+    backgroundColor: Colors.primary.navy,
+    borderRadius: 12,
+    paddingVertical: 18,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  modalSaveText: {
+    color: Colors.neutral.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });
