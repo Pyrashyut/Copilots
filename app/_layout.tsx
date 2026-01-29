@@ -1,9 +1,10 @@
 // app/_layout.tsx
 import { Session } from '@supabase/supabase-js';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as NavigationBar from 'expo-navigation-bar';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image } from 'react-native';
+import { ActivityIndicator, Image, Platform } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { supabase } from '../lib/supabase';
 
@@ -14,6 +15,16 @@ export default function RootLayout() {
   
   const segments = useSegments();
   const router = useRouter();
+
+  // Handle Android Navigation Bar (Immersive Mode)
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      // Hides the bottom navigation buttons (Back, Home, Overview)
+      // They will reappear temporarily if the user swipes up from the bottom
+      NavigationBar.setVisibilityAsync("hidden");
+      NavigationBar.setBehaviorAsync("overlay-swipe");
+    }
+  }, []);
 
   const checkOnboardingStatus = async (userId: string) => {
     try {
