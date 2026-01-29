@@ -126,7 +126,7 @@ export default function DiscoverScreen() {
           resizeMode="contain"
         />
         <ActivityIndicator size="large" color={Colors.highlight.gold} />
-        <Text style={styles.loadingText}>Finding your copilots...</Text>
+        <Text style={styles.loadingText}>Finding your matches...</Text>
       </LinearGradient>
     );
   }
@@ -137,7 +137,7 @@ export default function DiscoverScreen() {
         colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
         style={styles.center}
       >
-        <Text style={styles.emptyTitle}>No More Pilots</Text>
+        <Text style={styles.emptyTitle}>No More Profiles</Text>
       </LinearGradient>
     );
   }

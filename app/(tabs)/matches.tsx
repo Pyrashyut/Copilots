@@ -112,7 +112,7 @@ export default function MatchesScreen() {
 
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Copilots</Text>
+          <Text style={styles.headerTitle}>Frolicr</Text>
           <Text style={styles.headerSubtitle}>Your travel connections</Text>
         </View>
         <View style={styles.totalBadge}>
@@ -207,7 +207,7 @@ export default function MatchesScreen() {
             <View style={styles.emptyIconCircle}>
               <Ionicons name="people-outline" size={56} color={Colors.primary.navy} />
             </View>
-            <Text style={styles.emptyTitle}>No Copilots Yet</Text>
+            <Text style={styles.emptyTitle}>No Frolicr Yet</Text>
             <Text style={styles.emptyText}>Start swiping to find your travel companions!</Text>
           </View>
         }

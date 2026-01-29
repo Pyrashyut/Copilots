@@ -50,7 +50,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="matches"
         options={{
-          title: 'Copilots',
+          title: 'Frolicr',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? "people" : "people-outline"} 
