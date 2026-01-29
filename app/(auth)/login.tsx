@@ -114,7 +114,7 @@ export default function Login() {
             <Link href="/sign-up" asChild>
               <TouchableOpacity style={styles.linkButton}>
                 <Text style={styles.linkText}>
-                  New Pilot? <Text style={styles.linkTextBold}>Create Account</Text>
+                  New Frolicr? <Text style={styles.linkTextBold}>Create Account</Text>
                 </Text>
               </TouchableOpacity>
             </Link>
