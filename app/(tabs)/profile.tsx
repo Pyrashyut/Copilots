@@ -1,20 +1,26 @@
 // app/(tabs)/profile.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
+
+const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  // Reload profile whenever the tab comes into focus (in case of edits)
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [])
+  );
 
   const fetchProfile = async () => {
     try {
@@ -36,47 +42,25 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.auth.signOut();
-          }
-        }
-      ]
-    );
-  };
-
-  const handleEditProfile = () => {
-    router.push('/profile/edit');
-  };
-
   const handleSettings = () => {
-    router.push('/(tabs)/settings');
+    // Navigate to the hidden settings tab
+    router.push('/settings');
+  };
+
+  const handleEdit = () => {
+    router.push('/profile/edit');
   };
 
   if (loading) {
     return (
-      <LinearGradient 
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]} 
-        locations={[0, 0.5, 1]}
-        style={styles.center}
-      >
-        <Image 
-          source={require('../../assets/images/logo.png')}
-          style={styles.logoLoader}
-          resizeMode="contain"
-        />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </LinearGradient>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary.navy} />
+      </View>
     );
   }
+
+  // Fallback if no photos
+  const mainPhoto = profile?.photos?.[0] || 'https://via.placeholder.com/400';
 
   return (
     <LinearGradient 
@@ -84,196 +68,119 @@ export default function ProfileScreen() {
       locations={[0, 0.3, 0.6, 1]}
       style={styles.container}
     >
-      {/* Decorative Background Elements */}
       <View style={styles.bgDecoration1} />
-      <View style={styles.bgDecoration2} />
-
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
+      
+      <SafeAreaView style={styles.safeArea}>
+        {/* HEADER */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Profile</Text>
-            <Text style={styles.headerSubtitle}>Your journey profile</Text>
-          </View>
+          <Text style={styles.headerTitle}>My Profile</Text>
           <TouchableOpacity 
-            style={styles.settingsButton}
+            style={styles.settingsButton} 
             onPress={handleSettings}
             activeOpacity={0.8}
           >
-            <Ionicons name="settings-outline" size={22} color={Colors.neutral.white} />
+            <Ionicons name="settings-outline" size={24} color={Colors.neutral.white} />
           </TouchableOpacity>
         </View>
 
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          {/* Avatar Section */}
-          <View style={styles.avatarSection}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
+          {/* PROFILE CARD (View as others see) */}
+          <View style={styles.profileCard}>
+            <View style={styles.imageContainer}>
+              <Image source={{ uri: mainPhoto }} style={styles.profileImage} resizeMode="cover" />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                style={styles.imageOverlay}
+              >
+                <Text style={styles.name}>
+                  {profile?.username}
+                  {profile?.age ? `, ${profile.age}` : ''}
+                </Text>
+                <Text style={styles.location}>
+                  <Ionicons name="location" size={14} color={Colors.highlight.gold} /> {profile?.location || 'No Location'}
+                </Text>
+              </LinearGradient>
+            </View>
+
+            {/* Quick Stats */}
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>5.0</Text>
+                <Text style={styles.statLabel}>Rating</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>0</Text>
+                <Text style={styles.statLabel}>Trips</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>100%</Text>
+                <Text style={styles.statLabel}>Verified</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* EDIT BUTTON */}
+          <TouchableOpacity style={styles.editButton} onPress={handleEdit} activeOpacity={0.8}>
             <LinearGradient
               colors={Colors.gradient.sunset}
-              style={styles.avatarGradient}
-            >
-              <View style={styles.avatarInner}>
-                {profile?.photos && profile.photos.length > 0 ? (
-                  <Image 
-                    source={{ uri: profile.photos[0] }} 
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person" size={48} color={Colors.neutral.greyLight} />
-                  </View>
-                )}
-              </View>
-            </LinearGradient>
-            <TouchableOpacity 
-              style={styles.editPhotoButton}
-              onPress={() => router.push('/profile/edit-pfp')}
-            >
-              <Ionicons name="camera" size={16} color={Colors.neutral.white} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Name & Username */}
-          <Text style={styles.name}>{profile?.username || 'Traveler'}</Text>
-          {profile?.location && (
-            <View style={styles.locationRow}>
-              <Ionicons name="location" size={16} color={Colors.neutral.grey} />
-              <Text style={styles.location}>{profile.location}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <View style={styles.statIconCircle}>
-              <Ionicons name="heart" size={20} color={Colors.highlight.error} />
-            </View>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Matches</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <View style={styles.statIconCircle}>
-              <Ionicons name="airplane" size={20} color={Colors.secondary.teal} />
-            </View>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Trips</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <View style={styles.statIconCircle}>
-              <Ionicons name="star" size={20} color={Colors.highlight.gold} />
-            </View>
-            <Text style={styles.statNumber}>5.0</Text>
-            <Text style={styles.statLabel}>Rating</Text>
-          </View>
-        </View>
-
-        {/* About Section */}
-        {profile?.bio && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About</Text>
-            <View style={styles.sectionCard}>
-              <Text style={styles.bioText}>{profile.bio}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Details Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Details</Text>
-          <View style={styles.sectionCard}>
-            {profile?.job_title && (
-              <View style={styles.detailRow}>
-                <View style={styles.detailIconCircle}>
-                  <Ionicons name="briefcase" size={16} color={Colors.primary.navy} />
-                </View>
-                <View style={styles.detailContent}>
-                  <Text style={styles.detailLabel}>Job Title</Text>
-                  <Text style={styles.detailValue}>{profile.job_title}</Text>
-                </View>
-              </View>
-            )}
-            
-            {profile?.age && (
-              <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
-                <View style={styles.detailIconCircle}>
-                  <Ionicons name="calendar" size={16} color={Colors.primary.navy} />
-                </View>
-                <View style={styles.detailContent}>
-                  <Text style={styles.detailLabel}>Age</Text>
-                  <Text style={styles.detailValue}>{profile.age} years old</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Incomplete Profile Notice */}
-        {(!profile?.bio || !profile?.job_title || !profile?.location) && (
-          <View style={styles.noticeCard}>
-            <Ionicons name="information-circle" size={24} color={Colors.highlight.gold} />
-            <Text style={styles.noticeText}>
-              Complete your profile to get better matches!
-            </Text>
-          </View>
-        )}
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={handleEditProfile}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="create-outline" size={20} color={Colors.primary.navy} />
-            <Text style={styles.editButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.logoutButton}
-            onPress={handleSignOut}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#FF4757', '#FF6B6B']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.logoutGradient}
+              style={styles.editGradient}
             >
-              <Ionicons name="log-out-outline" size={20} color={Colors.neutral.white} />
-              <Text style={styles.logoutText}>Sign Out</Text>
+              <Ionicons name="create-outline" size={20} color={Colors.neutral.white} />
+              <Text style={styles.editText}>Edit Profile</Text>
             </LinearGradient>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
+
+          {/* BIO SECTION */}
+          {profile?.bio && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>About Me</Text>
+              <View style={styles.contentCard}>
+                <Text style={styles.bodyText}>{profile.bio}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* EXPERIENCE MATRIX PREVIEW */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Travel Preferences</Text>
+            <View style={styles.contentCard}>
+              <View style={styles.prefRow}>
+                <Ionicons name="airplane" size={20} color={Colors.primary.navy} />
+                <Text style={styles.prefText}>
+                  {profile?.travel_traits?.pacing === 'left' ? 'Relaxed' : 'Action Packed'}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.prefRow}>
+                <Ionicons name="wallet" size={20} color={Colors.primary.navy} />
+                <Text style={styles.prefText}>
+                  {profile?.travel_traits?.budget === 'left' ? 'Budget' : 'Luxury'}
+                </Text>
+              </View>
+              
+              {/* Show count of rated items */}
+              <View style={styles.matrixSummary}>
+                <Text style={styles.matrixText}>
+                  {Object.keys(profile?.preferences || {}).length} experiences rated in Matrix
+                </Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={{height: 40}} />
+        </ScrollView>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoLoader: {
-    width: 200,
-    height: 80,
-    marginBottom: 20,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  
-  // Background Decorations
   bgDecoration1: {
     position: 'absolute',
     top: -100,
@@ -283,40 +190,20 @@ const styles = StyleSheet.create({
     borderRadius: 150,
     backgroundColor: 'rgba(78, 205, 196, 0.08)',
   },
-  bgDecoration2: {
-    position: 'absolute',
-    bottom: 100,
-    left: -150,
-    width: 350,
-    height: 350,
-    borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
-  },
+  safeArea: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 70,
-    paddingBottom: 40,
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
     color: Colors.neutral.white,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
   },
   settingsButton: {
     width: 44,
@@ -325,104 +212,66 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
+
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+
+  /* PROFILE CARD */
   profileCard: {
     backgroundColor: Colors.neutral.white,
     borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  avatarSection: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  avatarGradient: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    padding: 4,
-  },
-  avatarInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 56,
     overflow: 'hidden',
-    backgroundColor: Colors.neutral.trailDust,
+    marginBottom: 20,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  avatar: {
+  imageContainer: {
+    height: 350,
+    position: 'relative',
+  },
+  profileImage: {
     width: '100%',
     height: '100%',
   },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  editPhotoButton: {
+  imageOverlay: {
     position: 'absolute',
     bottom: 0,
+    left: 0,
     right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primary.navy,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: Colors.neutral.white,
+    padding: 20,
+    paddingTop: 60,
   },
   name: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
-    color: Colors.primary.navy,
-    marginBottom: 6,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    color: Colors.neutral.white,
+    marginBottom: 4,
   },
   location: {
-    fontSize: 16,
-    color: Colors.neutral.grey,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '600',
   },
+  
+  /* STATS */
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  statCard: {
-    flex: 1,
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    paddingVertical: 16,
     backgroundColor: Colors.neutral.white,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
   },
-  statIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.neutral.trailDust,
-    justifyContent: 'center',
+  statItem: {
     alignItems: 'center',
-    marginBottom: 8,
   },
-  statNumber: {
-    fontSize: 24,
+  statValue: {
+    fontSize: 18,
     fontWeight: '800',
     color: Colors.primary.navy,
   },
@@ -430,120 +279,86 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.neutral.grey,
     marginTop: 2,
+    textTransform: 'uppercase',
   },
-  section: {
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: Colors.neutral.border,
+  },
+
+  /* EDIT BUTTON */
+  editButton: {
     marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  editGradient: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  editText: {
+    color: Colors.neutral.white,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+
+  /* SECTIONS */
+  section: {
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
-    color: Colors.neutral.white,
-    marginBottom: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  sectionCard: {
+  contentCard: {
     backgroundColor: Colors.neutral.white,
     borderRadius: 16,
-    padding: 16,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    padding: 20,
   },
-  bioText: {
+  bodyText: {
     fontSize: 15,
-    color: Colors.neutral.greyDark,
+    color: Colors.primary.navy,
     lineHeight: 22,
   },
-  detailRow: {
+  prefRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.border,
+    gap: 12,
+    paddingVertical: 4,
   },
-  detailIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  prefText: {
+    fontSize: 16,
+    color: Colors.primary.navy,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.neutral.border,
+    marginVertical: 12,
+  },
+  matrixSummary: {
+    marginTop: 12,
     backgroundColor: Colors.neutral.trailDust,
-    justifyContent: 'center',
+    padding: 10,
+    borderRadius: 8,
     alignItems: 'center',
-    marginRight: 12,
   },
-  detailContent: {
-    flex: 1,
-  },
-  detailLabel: {
-    fontSize: 12,
+  matrixText: {
+    fontSize: 13,
     color: Colors.neutral.grey,
-    marginBottom: 2,
-  },
-  detailValue: {
-    fontSize: 16,
     fontWeight: '600',
-    color: Colors.primary.navy,
-  },
-  noticeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 217, 61, 0.15)',
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 217, 61, 0.3)',
-  },
-  noticeText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.neutral.white,
-    fontWeight: '600',
-  },
-  actionButtons: {
-    gap: 12,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.neutral.white,
-    paddingVertical: 16,
-    borderRadius: 16,
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  editButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.primary.navy,
-  },
-  logoutButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  logoutGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-  },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.neutral.white,
-  },
+  }
 });

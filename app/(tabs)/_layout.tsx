@@ -10,28 +10,25 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary.navy,
-        tabBarInactiveTintColor: Colors.neutral.greyLight,
+        tabBarInactiveTintColor: '#A0A0A0',
+        tabBarShowLabel: true,
         tabBarStyle: {
           backgroundColor: Colors.neutral.white,
           borderTopWidth: 0,
-          elevation: 20,
-          shadowColor: Colors.shadow.medium,
-          shadowOffset: { width: 0, height: -4 },
+          elevation: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.1,
-          shadowRadius: 12,
+          shadowRadius: 4,
           height: Platform.OS === 'ios' ? 88 : 70,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-          paddingTop: 12,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
-          marginTop: 4,
-          letterSpacing: 0.3,
+          marginTop: 2,
         },
-        tabBarIconStyle: {
-          marginTop: 4,
-        }
       }}
     >
       <Tabs.Screen
@@ -41,7 +38,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? "compass" : "compass-outline"} 
-              size={28} 
+              size={26} 
               color={color} 
             />
           ),
@@ -50,11 +47,37 @@ export default function TabLayout() {
       <Tabs.Screen
         name="matches"
         options={{
-          title: 'Frolicr',
+          title: 'Matches', // Changed from "Frolicr" to "Matches" per PDF usually, or keep Frolicr if preferred
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
-              name={focused ? "people" : "people-outline"} 
-              size={28} 
+              name={focused ? "heart" : "heart-outline"} 
+              size={26} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="trips"
+        options={{
+          title: 'Trips',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "airplane" : "airplane-outline"} 
+              size={26} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          title: 'Inbox',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} 
+              size={26} 
               color={color} 
             />
           ),
@@ -67,23 +90,18 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
               name={focused ? "person" : "person-outline"} 
-              size={28} 
+              size={26} 
               color={color} 
             />
           ),
         }}
       />
+      
+      {/* HIDE SETTINGS from the tab bar, but keep it accessible via router push */}
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? "settings" : "settings-outline"} 
-              size={28} 
-              color={color} 
-            />
-          ),
+          href: null,
         }}
       />
     </Tabs>
