@@ -21,14 +21,35 @@ const { width } = Dimensions.get('window');
 export default function ProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
+  const [avgRating, setAvgRating] = useState<string>('0.0');
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async () => {
+  const fetchProfileData = async () => {
     try {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      setProfile(data);
+
+      // 1. Fetch Profile Details
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      setProfile(profileData);
+
+      // 2. Fetch Actual Rating from the 'ratings' table
+      const { data: ratingData } = await supabase
+        .from('ratings')
+        .select('score')
+        .eq('ratee_id', user.id);
+      
+      if (ratingData && ratingData.length > 0) {
+        const sum = ratingData.reduce((acc, curr) => acc + curr.score, 0);
+        setAvgRating((sum / ratingData.length).toFixed(1));
+      } else {
+        setAvgRating('0.0');
+      }
     } catch (err) {
       console.error("Profile Fetch Error:", err);
     } finally {
@@ -38,7 +59,7 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchProfile();
+      fetchProfileData();
     }, [])
   );
 
@@ -55,7 +76,7 @@ export default function ProfileScreen() {
             <Ionicons name="create-outline" size={24} color="#161616" />
           </TouchableOpacity>
           <Text style={styles.appBarTitle}>My Profile</Text>
-          <TouchableOpacity onPress={() => router.push('/settings' as any)}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as any)}>
             <Ionicons name="settings-outline" size={24} color="#161616" />
           </TouchableOpacity>
         </View>
@@ -81,7 +102,7 @@ export default function ProfileScreen() {
             <View style={styles.statBox}>
               <View style={styles.statHeading}>
                 <Ionicons name="star" size={16} color="#FF9100" />
-                <Text style={styles.statValue}>4.8</Text>
+                <Text style={styles.statValue}>{avgRating}</Text>
               </View>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
@@ -111,11 +132,11 @@ export default function ProfileScreen() {
                 <View key={i} style={styles.imageCard}>
                   <Image source={{ uri: photo }} style={styles.imageThumb} resizeMode="cover" />
                   <LinearGradient colors={['transparent', 'rgba(0,0,0,0.4)']} style={styles.imageOverlay} />
-                  <View style={styles.imageTag}>
-                    <Text style={styles.imageTagText}>{i + 1}</Text>
-                  </View>
                 </View>
               ))}
+              {(!profile?.photos || profile.photos.length === 0) && (
+                <Text style={styles.emptyText}>No photos added yet.</Text>
+              )}
             </ScrollView>
           </View>
 
@@ -150,7 +171,7 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              {/* Category 3: Not For Me (FIXED: Added this block) */}
+              {/* Category 3: Not For Me */}
               <View style={[styles.matrixCard, styles.matrixDislike]}>
                 <View style={[styles.matrixIconBox, { backgroundColor: '#E03724' }]}>
                   <Ionicons name="thumbs-down" size={14} color="#FFF" />
@@ -208,8 +229,7 @@ const styles = StyleSheet.create({
   imageCard: { width: 130, height: 180, borderRadius: 16, marginRight: 10, overflow: 'hidden', backgroundColor: '#F2F2F2' },
   imageThumb: { ...StyleSheet.absoluteFillObject },
   imageOverlay: { ...StyleSheet.absoluteFillObject },
-  imageTag: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  imageTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  emptyText: { color: '#000', opacity: 0.3, fontSize: 14, padding: 20 },
 
   matrixRow: { gap: 10 },
   matrixCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },

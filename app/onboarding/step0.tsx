@@ -7,12 +7,14 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
@@ -29,7 +31,6 @@ export default function OnboardingStep0() {
       Alert.alert('Limit Reached', 'You can upload up to 5 photos.');
       return;
     }
-
     try {
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -38,7 +39,6 @@ export default function OnboardingStep0() {
         selectionLimit: 5 - images.length,
         quality: 0.5,
       });
-
       if (!result.canceled) {
         uploadMultipleImages(result.assets);
       }
@@ -110,220 +110,98 @@ export default function OnboardingStep0() {
 
   return (
     <View style={styles.container}>
-      {/* Figma Blur Backgrounds */}
       <View style={[styles.blurPath, styles.blurCoral]} />
       <View style={[styles.blurPath, styles.blurYellow]} />
 
       <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.content}>
-            {/* Logo */}
-            <Image 
-              source={require('../../assets/images/logo.png')} 
-              style={styles.logo} 
-              resizeMode="contain" 
-            />
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <View style={styles.content}>
+              <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
 
-            {/* Heading */}
-            <View style={styles.headingContainer}>
-              <Text style={styles.title}>Complete Your Profile</Text>
-              <Text style={styles.desc}>Add your details so others can get to know you.</Text>
-            </View>
-
-            {/* Username Input */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Username</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. wanderlust_king"
-                  placeholderTextColor="rgba(22, 22, 22, 0.4)"
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                />
-                <Ionicons name="at" size={20} color="#292D32" />
-              </View>
-            </View>
-
-            {/* Photo Section */}
-            <View style={styles.section}>
-              <View style={styles.labelRow}>
-                <Text style={styles.label}>Your Photos</Text>
-                <Text style={styles.photoCount}>{images.length}/5</Text>
+              <View style={styles.headingContainer}>
+                <Text style={styles.title}>Complete Your Profile</Text>
+                <Text style={styles.desc}>Add your details so others can get to know you.</Text>
               </View>
 
-              <View style={styles.photoGrid}>
-                {images.map((img, index) => (
-                  <View key={index} style={styles.imageWrapper}>
-                    <Image source={{ uri: img }} style={styles.thumb} />
-                    <TouchableOpacity
-                      style={styles.removeBtn}
-                      onPress={() => setImages(images.filter((_, i) => i !== index))}
-                    >
-                      <Ionicons name="close" size={14} color="#FFF" />
+              <View style={styles.section}>
+                <Text style={styles.label}>Username</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. wanderlust_king"
+                    placeholderTextColor="rgba(22, 22, 22, 0.4)"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                  />
+                  <Ionicons name="at" size={20} color="#292D32" />
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Your Photos</Text>
+                  <Text style={styles.photoCount}>{images.length}/5</Text>
+                </View>
+
+                <View style={styles.photoGrid}>
+                  {images.map((img, index) => (
+                    <View key={index} style={styles.imageWrapper}>
+                      <Image source={{ uri: img }} style={styles.thumb} />
+                      <TouchableOpacity
+                        style={styles.removeBtn}
+                        onPress={() => setImages(images.filter((_, i) => i !== index))}
+                      >
+                        <Ionicons name="close" size={14} color="#FFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+
+                  {images.length < 5 && (
+                    <TouchableOpacity style={styles.addBtn} onPress={pickImages} disabled={uploading}>
+                      {uploading ? <ActivityIndicator color="#161616" /> : <Ionicons name="add" size={32} color="#161616" />}
                     </TouchableOpacity>
-                  </View>
-                ))}
-
-                {images.length < 5 && (
-                  <TouchableOpacity style={styles.addBtn} onPress={pickImages} disabled={uploading}>
-                    {uploading ? <ActivityIndicator color="#161616" /> : <Ionicons name="add" size={32} color="#161616" />}
-                  </TouchableOpacity>
-                )}
+                  )}
+                </View>
               </View>
-            </View>
 
-            {/* Action Button */}
-            <TouchableOpacity style={styles.primaryButton} onPress={finishOnboarding} disabled={saving}>
-              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Get Started</Text>}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+              <TouchableOpacity style={styles.primaryButton} onPress={finishOnboarding} disabled={saving}>
+                {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Get Started</Text>}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#FEFEFE' 
-  },
-  blurPath: { 
-    position: 'absolute', 
-    width: 400, 
-    height: 400, 
-    borderRadius: 200, 
-    opacity: 0.5 
-  },
-  blurCoral: { 
-    top: '20%', 
-    left: -100, 
-    backgroundColor: 'rgba(255, 122, 73, 0.06)', 
-    transform: [{ scaleX: 1.5 }] 
-  },
-  blurYellow: { 
-    top: -50, 
-    right: -100, 
-    backgroundColor: 'rgba(255, 243, 73, 0.06)' 
-  },
-  scrollContent: { 
-    paddingBottom: 40 
-  },
-  content: { 
-    paddingHorizontal: 20, 
-    alignItems: 'center', 
-    gap: 32, 
-    paddingTop: 40 
-  },
-  logo: { 
-    width: 48, 
-    height: 48 
-  },
-  headingContainer: { 
-    width: '100%', 
-    gap: 8 
-  },
-  title: { 
-    fontFamily: 'DM Sans',
-    fontSize: 24, 
-    fontWeight: '700', 
-    color: '#161616', 
-    letterSpacing: -1 
-  },
-  desc: { 
-    fontFamily: 'DM Sans',
-    fontSize: 16, 
-    color: '#161616', 
-    opacity: 0.6, 
-    lineHeight: 22 
-  },
-  section: { 
-    width: '100%', 
-    gap: 12 
-  },
-  label: { 
-    fontFamily: 'DM Sans',
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: '#161616' 
-  },
-  labelRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center' 
-  },
-  photoCount: { 
-    fontSize: 12, 
-    color: '#161616', 
-    opacity: 0.5 
-  },
-  inputContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#F2F2F2', 
-    borderRadius: 10, 
-    paddingHorizontal: 16, 
-    height: 55 
-  },
-  input: { 
-    flex: 1, 
-    fontSize: 16, 
-    color: '#161616',
-    fontFamily: 'DM Sans'
-  },
-  photoGrid: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 12 
-  },
-  imageWrapper: { 
-    position: 'relative' 
-  },
-  thumb: { 
-    width: 100, 
-    height: 130, 
-    borderRadius: 12, 
-    backgroundColor: '#F2F2F2' 
-  },
-  removeBtn: { 
-    position: 'absolute', 
-    top: -5, 
-    right: -5, 
-    width: 24, 
-    height: 24, 
-    borderRadius: 12, 
-    backgroundColor: '#E03724', 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF'
-  },
-  addBtn: { 
-    width: 100, 
-    height: 130, 
-    borderRadius: 12, 
-    backgroundColor: '#F2F2F2', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    borderWidth: 1, 
-    borderColor: 'rgba(0,0,0,0.05)',
-    borderStyle: 'dashed'
-  },
-  primaryButton: { 
-    width: '100%', 
-    height: 55, 
-    backgroundColor: '#E8755A', 
-    borderRadius: 12, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    marginTop: 20
-  },
-  buttonText: { 
-    color: '#FFF', 
-    fontSize: 18, 
-    fontWeight: '700',
-    fontFamily: 'DM Sans'
-  },
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
+  blurPath: { position: 'absolute', width: 400, height: 400, borderRadius: 200, opacity: 0.5 },
+  blurCoral: { top: '20%', left: -100, backgroundColor: 'rgba(255, 122, 73, 0.06)', transform: [{ scaleX: 1.5 }] },
+  blurYellow: { top: -50, right: -100, backgroundColor: 'rgba(255, 243, 73, 0.06)' },
+  scrollContent: { paddingBottom: 40 },
+  content: { paddingHorizontal: 20, alignItems: 'center', gap: 32, paddingTop: 40 },
+  logo: { width: 48, height: 48 },
+  headingContainer: { width: '100%', gap: 8 },
+  title: { fontSize: 24, fontWeight: '700', color: '#161616', letterSpacing: -1 },
+  desc: { fontSize: 16, color: '#161616', opacity: 0.6, lineHeight: 22 },
+  section: { width: '100%', gap: 12 },
+  label: { fontSize: 16, fontWeight: '700', color: '#161616' },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  photoCount: { fontSize: 12, color: '#161616', opacity: 0.5 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F2F2F2', borderRadius: 10, paddingHorizontal: 16, height: 55 },
+  input: { flex: 1, fontSize: 16, color: '#161616' },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  imageWrapper: { position: 'relative' },
+  thumb: { width: 100, height: 130, borderRadius: 12, backgroundColor: '#F2F2F2' },
+  removeBtn: { position: 'absolute', top: -5, right: -5, width: 24, height: 24, borderRadius: 12, backgroundColor: '#E03724', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
+  addBtn: { width: 100, height: 130, borderRadius: 12, backgroundColor: '#F2F2F2', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', borderStyle: 'dashed' },
+  primaryButton: { width: '100%', height: 55, backgroundColor: '#E8755A', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 20 },
+  buttonText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
 });

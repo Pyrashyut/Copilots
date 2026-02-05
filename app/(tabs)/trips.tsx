@@ -3,7 +3,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   RefreshControl,
   ScrollView,
@@ -26,30 +25,24 @@ export default function TripsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Fetch active bookings
-      const { data: bookings, error: bookingError } = await supabase
+      // Filter by 'active' status ONLY
+      const { data: bookings } = await supabase
         .from('bookings')
         .select('*')
         .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
         .eq('status', 'active');
-
-      if (bookingError) throw bookingError;
 
       if (!bookings || bookings.length === 0) {
         setActiveTrips([]);
         return;
       }
 
-      // 2. Fetch profiles for partners manually to avoid schema errors
       const partnerIds = bookings.map(b => b.user_a === user.id ? b.user_b : b.user_a);
-      const { data: profiles, error: profileError } = await supabase
+      const { data: profiles } = await supabase
         .from('profiles')
         .select('id, username, photos')
         .in('id', partnerIds);
 
-      if (profileError) throw profileError;
-
-      // 3. Map profiles to bookings
       const formatted = bookings.map(b => {
         const partnerId = b.user_a === user.id ? b.user_b : b.user_a;
         const partnerProfile = profiles?.find(p => p.id === partnerId);
@@ -71,70 +64,36 @@ export default function TripsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.blurPath, styles.blurCoral]} />
-      <View style={[styles.blurPath, styles.blurYellow]} />
-
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Trips</Text>
           <Text style={styles.headerSubtitle}>Your upcoming adventures</Text>
         </View>
-
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRealTrips} tintColor="#E8755A" />}
-        >
+        <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRealTrips} tintColor="#E8755A" />}>
           <Text style={styles.sectionLabel}>Active Adventures</Text>
-          
           {activeTrips.length === 0 && !loading ? (
             <View style={styles.emptyState}>
-              <View style={styles.emptyIconCircle}>
-                <Ionicons name="airplane-outline" size={40} color="#E8755A" />
-              </View>
+              <View style={styles.emptyIconCircle}><Ionicons name="airplane-outline" size={40} color="#E8755A" /></View>
               <Text style={styles.emptyText}>No active trips found.</Text>
-              
-              <TouchableOpacity 
-                style={styles.findBtn}
-                onPress={() => router.push('/(tabs)/' as any)}
-              >
-                <Text style={styles.findBtnText}>Find a Travel Companion</Text>
-              </TouchableOpacity>
             </View>
           ) : (
             activeTrips.map((trip) => (
-              <TouchableOpacity 
-                key={trip.id} 
-                style={styles.tripCard} 
-                onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: trip.id } })}
-              >
+              <TouchableOpacity key={trip.id} style={styles.tripCard} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: trip.id } })}>
                 <View style={styles.cardTop}>
-                  <View style={styles.tierBadge}>
-                    <Text style={styles.tierText}>{trip.tier_id}</Text>
-                  </View>
-                  <View style={styles.timerBadge}>
-                    <Ionicons name="chatbubbles-outline" size={14} color="#E8755A" />
-                    <Text style={styles.timerText}>Chat Unlocked</Text>
-                  </View>
+                  <View style={styles.tierBadge}><Text style={styles.tierText}>{trip.tier_id}</Text></View>
+                  <View style={styles.timerBadge}><Ionicons name="chatbubbles-outline" size={14} color="#E8755A" /><Text style={styles.timerText}>Chat Unlocked</Text></View>
                 </View>
-                
                 <View style={styles.cardMain}>
-                  <Image 
-                    source={{ uri: trip.partner?.photos?.[0] || 'https://via.placeholder.com/100' }} 
-                    style={styles.partnerAvatar} 
-                  />
+                  <Image source={{ uri: trip.partner?.photos?.[0] || 'https://via.placeholder.com/100' }} style={styles.partnerAvatar} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.destination}>Trip with {trip.partner?.username}</Text>
-                    <Text style={styles.statusLine}>
-                      Confirmed • {new Date(trip.created_at).toLocaleDateString()}
-                    </Text>
+                    <Text style={styles.statusLine}>Confirmed • {new Date(trip.created_at).toLocaleDateString()}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#CCC" />
                 </View>
               </TouchableOpacity>
             ))
           )}
-          
-          {loading && <ActivityIndicator color="#E8755A" style={{ marginTop: 20 }} />}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -143,19 +102,12 @@ export default function TripsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FEFEFE' },
-  blurPath: { position: 'absolute', width: 300, height: 300, borderRadius: 150, opacity: 0.4 },
-  blurCoral: { top: '15%', left: -80, backgroundColor: 'rgba(255, 122, 73, 0.08)' },
-  blurYellow: { top: -50, right: -50, backgroundColor: 'rgba(255, 243, 73, 0.08)' },
   header: { paddingHorizontal: 20, paddingTop: 10, marginBottom: 20 },
-  headerTitle: { fontSize: 28, fontWeight: '700', color: '#161616', fontFamily: 'DM Sans' },
-  headerSubtitle: { fontSize: 16, color: '#161616', opacity: 0.5, fontFamily: 'DM Sans' },
+  headerTitle: { fontSize: 28, fontWeight: '700', color: '#161616' },
+  headerSubtitle: { fontSize: 16, color: '#161616', opacity: 0.5 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
   sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', color: '#000', opacity: 0.4, letterSpacing: 1, marginBottom: 15 },
-  tripCard: { 
-    backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginBottom: 15, 
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', 
-    shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 
-  },
+  tripCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginBottom: 15, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
   tierBadge: { backgroundColor: 'rgba(232, 117, 90, 0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   tierText: { color: '#E8755A', fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
@@ -168,6 +120,4 @@ const styles = StyleSheet.create({
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 16 },
   emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F9F9F9', justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: '#000', opacity: 0.3, fontSize: 16, textAlign: 'center' },
-  findBtn: { backgroundColor: '#161616', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 100 },
-  findBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 }
 });

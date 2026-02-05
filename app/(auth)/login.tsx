@@ -6,6 +6,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -36,97 +38,94 @@ export default function Login() {
 
   return (
     <View style={styles.container}>
-      {/* Figma Blur Backgrounds */}
       <View style={[styles.blurPath, styles.blurCoral]} />
       <View style={[styles.blurPath, styles.blurYellow]} />
 
       <SafeAreaView style={{ flex: 1 }}>
-        {/* AppBar */}
-        <View style={styles.appBar}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color="#292D32" />
-          </TouchableOpacity>
-          <Text style={styles.appBarLabel}>Sign In</Text>
-          <View style={{ width: 24 }} />
-        </View>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.appBar}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={24} color="#292D32" />
+            </TouchableOpacity>
+            <Text style={styles.appBarLabel}>Sign In</Text>
+            <View style={{ width: 24 }} />
+          </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.content}>
-            {/* Logo */}
-            <Image 
-              source={require('../../assets/images/logo.png')} 
-              style={styles.logo} 
-              resizeMode="contain" 
-            />
+          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <View style={styles.content}>
+              <Image 
+                source={require('../../assets/images/logo.png')} 
+                style={styles.logo} 
+                resizeMode="contain" 
+              />
 
-            {/* Segmented Picker */}
-            <View style={styles.segmentedPicker}>
-              <View style={[styles.segmentOption, styles.activeSegment]}>
-                <Text style={styles.activeSegmentText}>Sign In</Text>
+              <View style={styles.segmentedPicker}>
+                <View style={[styles.segmentOption, styles.activeSegment]}>
+                  <Text style={styles.activeSegmentText}>Sign In</Text>
+                </View>
+                <TouchableOpacity 
+                  style={styles.segmentOption} 
+                  onPress={() => router.replace('/(auth)/sign-up')}
+                >
+                  <Text style={styles.inactiveSegmentText}>Sign Up</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity 
-                style={styles.segmentOption} 
-                onPress={() => router.replace('/(auth)/sign-up')}
-              >
-                <Text style={styles.inactiveSegmentText}>Sign Up</Text>
+
+              <View style={styles.headingContainer}>
+                <Text style={styles.title}>Sign in to your account</Text>
+                <Text style={styles.desc}>Start Frolicking</Text>
+              </View>
+
+              <View style={styles.form}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email Address"
+                    placeholderTextColor="rgba(22, 22, 22, 0.4)"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                  />
+                  <Ionicons name="person-outline" size={20} color="#292D32" />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Password"
+                    placeholderTextColor="rgba(22, 22, 22, 0.4)"
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#292D32" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.primaryButton} onPress={signInWithEmail} disabled={loading}>
+                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Sign In</Text>}
               </TouchableOpacity>
-            </View>
 
-            {/* Heading */}
-            <View style={styles.headingContainer}>
-              <Text style={styles.title}>Sign in to your account</Text>
-              <Text style={styles.desc}>Start Frolicking</Text>
-            </View>
+              <View style={styles.divider} />
 
-            {/* Inputs */}
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Email Address"
-                  placeholderTextColor="rgba(22, 22, 22, 0.4)"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                />
-                <Ionicons name="person-outline" size={20} color="#292D32" />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  placeholderTextColor="rgba(22, 22, 22, 0.4)"
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#292D32" />
+              <View style={styles.socialRow}>
+                <TouchableOpacity style={styles.socialButton}>
+                  <Ionicons name="logo-google" size={20} color="#000" />
+                  <Text style={styles.socialText}>Google</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.socialButton, { backgroundColor: '#000' }]}>
+                  <Ionicons name="logo-apple" size={20} color="#FFF" />
+                  <Text style={[styles.socialText, { color: '#FFF' }]}>Apple</Text>
                 </TouchableOpacity>
               </View>
             </View>
-
-            {/* Login Button */}
-            <TouchableOpacity style={styles.primaryButton} onPress={signInWithEmail} disabled={loading}>
-              {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Sign In</Text>}
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            {/* Social Buttons */}
-            <View style={styles.socialRow}>
-              <TouchableOpacity style={styles.socialButton}>
-                <Ionicons name="logo-google" size={20} color="#000" />
-                <Text style={styles.socialText}>Google</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialButton, { backgroundColor: '#000' }]}>
-                <Ionicons name="logo-apple" size={20} color="#FFF" />
-                <Text style={[styles.socialText, { color: '#FFF' }]}>Apple</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -138,7 +137,7 @@ const styles = StyleSheet.create({
   blurCoral: { top: '20%', left: -50, backgroundColor: 'rgba(255, 122, 73, 0.08)', transform: [{ scaleX: 1.5 }] },
   blurYellow: { top: -50, right: -50, backgroundColor: 'rgba(255, 243, 73, 0.08)' },
   appBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(22, 22, 22, 0.04)' },
-  appBarLabel: { fontSize: 21, fontWeight: '700', color: '#000', fontFamily: 'DM Sans' },
+  appBarLabel: { fontSize: 21, fontWeight: '700', color: '#000' },
   scrollContent: { paddingBottom: 40 },
   content: { paddingHorizontal: 16, alignItems: 'center', gap: 24, paddingTop: 24 },
   logo: { width: 48, height: 48 },

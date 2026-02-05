@@ -6,6 +6,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,7 +34,7 @@ export default function SignUp() {
       Alert.alert('Sign Up Failed', error.message);
       setLoading(false);
     } else {
-      router.push('/(auth)/verify'); // Send to our new Verify page
+      router.push('/(auth)/verify');
     }
   }
 
@@ -42,83 +44,86 @@ export default function SignUp() {
       <View style={[styles.blurPath, styles.blurYellow]} />
 
       <SafeAreaView style={{ flex: 1 }}>
-        <View style={styles.appBar}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color="#292D32" />
-          </TouchableOpacity>
-          <Text style={styles.appBarLabel}>Sign Up</Text>
-          <View style={{ width: 24 }} />
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.content}>
-            <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
-
-            <View style={styles.segmentedPicker}>
-              <TouchableOpacity style={styles.segmentOption} onPress={() => router.replace('/(auth)/login')}>
-                <Text style={styles.inactiveSegmentText}>Sign In</Text>
-              </TouchableOpacity>
-              <View style={[styles.segmentOption, styles.activeSegment]}>
-                <Text style={styles.activeSegmentText}>Sign Up</Text>
-              </View>
-            </View>
-
-            <View style={styles.headingContainer}>
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.desc}>Start Your Journey</Text>
-            </View>
-
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <TextInput style={styles.input} placeholder="Email Address" placeholderTextColor="rgba(22, 22, 22, 0.4)" value={email} onChangeText={setEmail} autoCapitalize="none" />
-                <Ionicons name="mail-outline" size={20} color="#292D32" />
-              </View>
-              <View style={styles.inputContainer}>
-                <TextInput style={styles.input} placeholder="Password" placeholderTextColor="rgba(22, 22, 22, 0.4)" secureTextEntry value={password} onChangeText={setPassword} />
-                <Ionicons name="lock-closed-outline" size={20} color="#292D32" />
-              </View>
-              <View style={styles.inputContainer}>
-                <TextInput style={styles.input} placeholder="Confirm Password" placeholderTextColor="rgba(22, 22, 22, 0.4)" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
-                <Ionicons name="lock-closed-outline" size={20} color="#292D32" />
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.primaryButton} onPress={signUpWithEmail} disabled={loading}>
-              {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Create Account</Text>}
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.appBar}>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={24} color="#292D32" />
             </TouchableOpacity>
-
-            <Text style={styles.footerNote}>
-              By creating an account you agree to our Terms of Service and Privacy Policy.
-            </Text>
-
-            <View style={styles.divider} />
-
-            <View style={styles.socialRow}>
-              <TouchableOpacity style={styles.socialButton}>
-                <Ionicons name="logo-google" size={20} color="#000" />
-                <Text style={styles.socialText}>Google</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialButton, { backgroundColor: '#000' }]}>
-                <Ionicons name="logo-apple" size={20} color="#FFF" />
-                <Text style={[styles.socialText, { color: '#FFF' }]}>Apple</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.appBarLabel}>Sign Up</Text>
+            <View style={{ width: 24 }} />
           </View>
-        </ScrollView>
+
+          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <View style={styles.content}>
+              <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
+
+              <View style={styles.segmentedPicker}>
+                <TouchableOpacity style={styles.segmentOption} onPress={() => router.replace('/(auth)/login')}>
+                  <Text style={styles.inactiveSegmentText}>Sign In</Text>
+                </TouchableOpacity>
+                <View style={[styles.segmentOption, styles.activeSegment]}>
+                  <Text style={styles.activeSegmentText}>Sign Up</Text>
+                </View>
+              </View>
+
+              <View style={styles.headingContainer}>
+                <Text style={styles.title}>Create Account</Text>
+                <Text style={styles.desc}>Start Your Journey</Text>
+              </View>
+
+              <View style={styles.form}>
+                <View style={styles.inputContainer}>
+                  <TextInput style={styles.input} placeholder="Email Address" placeholderTextColor="rgba(22, 22, 22, 0.4)" value={email} onChangeText={setEmail} autoCapitalize="none" />
+                  <Ionicons name="mail-outline" size={20} color="#292D32" />
+                </View>
+                <View style={styles.inputContainer}>
+                  <TextInput style={styles.input} placeholder="Password" placeholderTextColor="rgba(22, 22, 22, 0.4)" secureTextEntry value={password} onChangeText={setPassword} />
+                  <Ionicons name="lock-closed-outline" size={20} color="#292D32" />
+                </View>
+                <View style={styles.inputContainer}>
+                  <TextInput style={styles.input} placeholder="Confirm Password" placeholderTextColor="rgba(22, 22, 22, 0.4)" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
+                  <Ionicons name="lock-closed-outline" size={20} color="#292D32" />
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.primaryButton} onPress={signUpWithEmail} disabled={loading}>
+                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Create Account</Text>}
+              </TouchableOpacity>
+
+              <Text style={styles.footerNote}>
+                By creating an account you agree to our Terms of Service and Privacy Policy.
+              </Text>
+
+              <View style={styles.divider} />
+
+              <View style={styles.socialRow}>
+                <TouchableOpacity style={styles.socialButton}>
+                  <Ionicons name="logo-google" size={20} color="#000" />
+                  <Text style={styles.socialText}>Google</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.socialButton, { backgroundColor: '#000' }]}>
+                  <Ionicons name="logo-apple" size={20} color="#FFF" />
+                  <Text style={[styles.socialText, { color: '#FFF' }]}>Apple</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
 }
 
-// Copy styles from Login.tsx and add:
 const styles = StyleSheet.create({
-  // ... all styles from Login.tsx ...
   container: { flex: 1, backgroundColor: Colors.neutral.background },
   blurPath: { position: 'absolute', width: 400, height: 400, borderRadius: 200, opacity: 0.5 },
   blurCoral: { top: '20%', left: -50, backgroundColor: 'rgba(255, 122, 73, 0.08)', transform: [{ scaleX: 1.5 }] },
   blurYellow: { top: -50, right: -50, backgroundColor: 'rgba(255, 243, 73, 0.08)' },
   appBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(22, 22, 22, 0.04)' },
-  appBarLabel: { fontSize: 21, fontWeight: '700', color: '#000', fontFamily: 'DM Sans' },
+  appBarLabel: { fontSize: 21, fontWeight: '700', color: '#000' },
   scrollContent: { paddingBottom: 40 },
   content: { paddingHorizontal: 16, alignItems: 'center', gap: 24, paddingTop: 24 },
   logo: { width: 48, height: 48 },

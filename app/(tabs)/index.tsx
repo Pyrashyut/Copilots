@@ -28,7 +28,8 @@ export default function DiscoverScreen() {
 
   const fetchProfiles = async () => {
     try {
-      const { data } = await supabase.from('profiles').select('*').limit(20);
+      // Fetch only visible users
+      const { data } = await supabase.from('profiles').select('*').eq('is_visible', true).limit(20);
       setProfiles(data || []);
     } finally { setLoading(false); }
   };
@@ -88,6 +89,8 @@ export default function DiscoverScreen() {
     ]
   }));
 
+  const hasMoreProfiles = profiles.length > currentIndex;
+
   if (loading) return (
     <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>
   );
@@ -117,18 +120,25 @@ export default function DiscoverScreen() {
           {activeSegment === 'people' ? (
             <View style={styles.mainArea}>
               <View style={styles.cardContainer}>
-                {profiles.length > currentIndex ? (
+                {hasMoreProfiles ? (
                   <GestureDetector gesture={composedGesture}>
                     <Animated.View style={animatedStyle}>
                       <SwipeCard profile={profiles[currentIndex]} isImmersive={isImmersive} />
                     </Animated.View>
                   </GestureDetector>
                 ) : (
-                  <Text style={styles.emptyText}>No more explorers found.</Text>
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="sparkles-outline" size={60} color="#DDD" />
+                    <Text style={styles.emptyText}>No more explorers found nearby.</Text>
+                    <TouchableOpacity style={styles.refreshBtn} onPress={() => { setCurrentIndex(0); fetchProfiles(); }}>
+                      <Text style={styles.refreshBtnText}>Refresh Discovery</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
 
-              {!isImmersive && (
+              {/* ACTION BUTTONS: Now conditionally rendered based on hasMoreProfiles */}
+              {!isImmersive && hasMoreProfiles && (
                 <View style={styles.actionRow}>
                   <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}>
                     <Ionicons name="close" size={32} color="#FFF" />
@@ -144,7 +154,7 @@ export default function DiscoverScreen() {
           ) : (
             <ScrollView contentContainerStyle={styles.tripsContent}>
               <Text style={styles.sectionTitle}>Curated Adventures</Text>
-              {/* Add Trip Tiers mapping here */}
+              <Text style={styles.emptyText}>Trip packages coming soon...</Text>
             </ScrollView>
           )}
         </SafeAreaView>
@@ -168,11 +178,14 @@ const styles = StyleSheet.create({
   activeLabel: { opacity: 1, fontWeight: '700' },
   mainArea: { flex: 1, justifyContent: 'space-between', paddingVertical: 10 },
   cardContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyContainer: { alignItems: 'center', gap: 16 },
+  emptyText: { color: '#000', opacity: 0.3, fontSize: 16, textAlign: 'center', paddingHorizontal: 40 },
+  refreshBtn: { backgroundColor: '#161616', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 100, marginTop: 10 },
+  refreshBtnText: { color: '#FFF', fontWeight: '700' },
   actionRow: { flexDirection: 'row', gap: 15, paddingHorizontal: 25, paddingBottom: 15 },
   passBtn: { flex: 1, height: 60, backgroundColor: 'rgba(22, 22, 22, 0.15)', borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
   likeBtn: { flex: 1, height: 60, borderRadius: 30, overflow: 'hidden' },
   likeGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: '#000', opacity: 0.3, fontSize: 16 },
   tripsContent: { padding: 20 },
   sectionTitle: { fontSize: 24, fontWeight: '700', marginBottom: 20 }
 });
