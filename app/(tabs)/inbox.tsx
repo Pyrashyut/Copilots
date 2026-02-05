@@ -26,28 +26,61 @@ export default function InboxScreen() {
 
       const results: any[] = [];
 
-      // 1. Fetch Mutual Matches (Same as before)
-      const { data: matches } = await supabase.from('matches_view').select('*').eq('user_id', user.id).order('matched_at', { ascending: false }).limit(10);
-      if (matches) {
-        matches.forEach(m => {
-          results.push({ id: `match-${m.match_id}`, type: 'match', title: 'New Match! ❤️', body: `You and ${m.username} liked each other.`, time: new Date(m.matched_at).toLocaleDateString(), icon: 'heart', color: '#E8755A', data: { matchId: m.match_id, name: m.username } });
-        });
-      }
-
-      // 2. Fetch Trip Proposals - Filter out 'completed'
-      const { data: bookings } = await supabase
+      // Fetch all bookings to determine who we've already finished trips with
+      const { data: allBookings } = await supabase
         .from('bookings')
         .select('*, user_a_profile:profiles!bookings_user_a_fkey(username), user_b_profile:profiles!bookings_user_b_fkey(username)')
         .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
-        .not('status', 'eq', 'completed')
         .order('created_at', { ascending: false });
+      
+      const completedPartnerIds = new Set();
+      allBookings?.forEach(b => {
+        if (b.status === 'completed' || b.status === 'cancelled') {
+           const partner = b.user_a === user.id ? b.user_b : b.user_a;
+           completedPartnerIds.add(partner);
+        }
+      });
 
-      if (bookings) {
-        bookings.forEach(b => {
+      // 1. Fetch Mutual Matches
+      const { data: matches } = await supabase.from('matches_view').select('*').eq('user_id', user.id).order('matched_at', { ascending: false }).limit(10);
+      
+      if (matches) {
+        matches.forEach(m => {
+          // SKIP if we have ever completed/cancelled a trip with this match
+          if (completedPartnerIds.has(m.match_id)) return;
+
+          results.push({ 
+            id: `match-${m.match_id}`, 
+            type: 'match', 
+            title: 'New Match! ❤️', 
+            body: `You and ${m.username} liked each other.`, 
+            time: new Date(m.matched_at).toLocaleDateString(), 
+            icon: 'heart', 
+            color: '#E8755A', 
+            data: { matchId: m.match_id, name: m.username } 
+          });
+        });
+      }
+
+      // 2. Fetch Trip Proposals (Only Pending/Active)
+      if (allBookings) {
+        allBookings.forEach(b => {
+          if (b.status === 'completed' || b.status === 'cancelled') return;
+
           const isInviter = b.invited_by === user.id;
           const partnerName = b.user_a === user.id ? b.user_b_profile?.username : b.user_a_profile?.username;
+          
           if (b.status === 'pending') {
-            results.push({ id: `booking-${b.id}`, type: 'proposal', title: isInviter ? 'Proposal Sent ✈️' : 'New Trip Proposal! 🎁', body: isInviter ? `Waiting for ${partnerName} to accept.` : `${partnerName} invited you on a trip.`, time: 'Recent', icon: 'paper-plane', color: '#D4AF37', data: { matchId: isInviter ? (b.user_a === user.id ? b.user_b : b.user_a) : b.invited_by, name: partnerName } });
+            results.push({ 
+              id: `booking-${b.id}`, 
+              type: 'proposal', 
+              title: isInviter ? 'Proposal Sent ✈️' : 'New Trip Proposal! 🎁', 
+              body: isInviter ? `Waiting for ${partnerName} to accept.` : `${partnerName} invited you on a trip.`, 
+              time: 'Recent', 
+              icon: 'paper-plane', 
+              color: '#D4AF37', 
+              data: { matchId: isInviter ? (b.user_a === user.id ? b.user_b : b.user_a) : b.invited_by, name: partnerName } 
+            });
           }
         });
       }
@@ -70,6 +103,11 @@ export default function InboxScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRealNotifications} tintColor="#E8755A" />}
+          ListEmptyComponent={
+             <View style={{ paddingTop: 50, alignItems: 'center' }}>
+               <Text style={{ color: '#aaa' }}>No new notifications</Text>
+             </View>
+          }
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.notifItem} onPress={() => router.push({ pathname: '/trip/selection', params: item.data })}>
               <View style={[styles.iconBox, { backgroundColor: item.color + '15' }]}><Ionicons name={item.icon as any} size={22} color={item.color} /></View>

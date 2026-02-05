@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 export default function TripsScreen() {
   const router = useRouter();
   const [activeTrips, setActiveTrips] = useState<any[]>([]);
+  const [pastTrips, setPastTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchRealTrips = async () => {
@@ -25,15 +26,17 @@ export default function TripsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Filter by 'active' status ONLY
+      // Fetch Active AND Completed
       const { data: bookings } = await supabase
         .from('bookings')
         .select('*')
         .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
-        .eq('status', 'active');
+        .in('status', ['active', 'completed'])
+        .order('created_at', { ascending: false });
 
       if (!bookings || bookings.length === 0) {
         setActiveTrips([]);
+        setPastTrips([]);
         return;
       }
 
@@ -52,7 +55,9 @@ export default function TripsScreen() {
         };
       });
 
-      setActiveTrips(formatted);
+      setActiveTrips(formatted.filter(t => t.status === 'active'));
+      setPastTrips(formatted.filter(t => t.status === 'completed'));
+
     } catch (err) {
       console.error("Trips Error:", err);
     } finally {
@@ -70,10 +75,12 @@ export default function TripsScreen() {
           <Text style={styles.headerSubtitle}>Your upcoming adventures</Text>
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRealTrips} tintColor="#E8755A" />}>
+          
+          {/* ACTIVE TRIPS SECTION */}
           <Text style={styles.sectionLabel}>Active Adventures</Text>
-          {activeTrips.length === 0 && !loading ? (
+          {activeTrips.length === 0 ? (
             <View style={styles.emptyState}>
-              <View style={styles.emptyIconCircle}><Ionicons name="airplane-outline" size={40} color="#E8755A" /></View>
+              <View style={styles.emptyIconCircle}><Ionicons name="airplane-outline" size={30} color="#E8755A" /></View>
               <Text style={styles.emptyText}>No active trips found.</Text>
             </View>
           ) : (
@@ -94,6 +101,29 @@ export default function TripsScreen() {
               </TouchableOpacity>
             ))
           )}
+
+          {/* PAST TRIPS SECTION */}
+          {pastTrips.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 30 }]}>Past Adventures</Text>
+              {pastTrips.map((trip) => (
+                <View key={trip.id} style={[styles.tripCard, { opacity: 0.8 }]}>
+                  <View style={styles.cardTop}>
+                    <View style={[styles.tierBadge, { backgroundColor: '#F2F2F2' }]}><Text style={[styles.tierText, { color: '#888' }]}>{trip.tier_id}</Text></View>
+                    <View style={styles.timerBadge}><Ionicons name="checkmark-done" size={14} color="#3B9F16" /><Text style={[styles.timerText, { color: '#3B9F16' }]}>Completed</Text></View>
+                  </View>
+                  <View style={styles.cardMain}>
+                    <Image source={{ uri: trip.partner?.photos?.[0] || 'https://via.placeholder.com/100' }} style={[styles.partnerAvatar, { opacity: 0.6 }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.destination, { color: '#666' }]}>Trip with {trip.partner?.username}</Text>
+                      <Text style={styles.statusLine}>{new Date(trip.created_at).toLocaleDateString()}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -117,7 +147,7 @@ const styles = StyleSheet.create({
   partnerAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F2F2' },
   destination: { fontSize: 17, fontWeight: '700', color: '#161616' },
   statusLine: { fontSize: 13, color: '#000', opacity: 0.4, marginTop: 2 },
-  emptyState: { paddingVertical: 60, alignItems: 'center', gap: 16 },
-  emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F9F9F9', justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: '#000', opacity: 0.3, fontSize: 16, textAlign: 'center' },
+  emptyState: { paddingVertical: 40, alignItems: 'center', gap: 16, opacity: 0.6 },
+  emptyIconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F9F9F9', justifyContent: 'center', alignItems: 'center' },
+  emptyText: { color: '#000', opacity: 0.5, fontSize: 14, textAlign: 'center' },
 });

@@ -35,24 +35,37 @@ export default function MatchesScreen() {
 
       const { data: profiles } = await supabase.from('profiles').select('id, username, photos').in('id', mutualIds);
       
-      // Exclude 'completed' and 'cancelled' from blocking the Match UI
+      // Fetch ALL bookings for this user, regardless of status
       const { data: allBookings } = await supabase
         .from('bookings')
         .select('*')
-        .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
-        .in('status', ['pending', 'active']);
+        .or(`user_a.eq.${user.id},user_b.eq.${user.id}`);
 
       const negs: any[] = [];
       const fresh: any[] = [];
 
       profiles?.forEach(profile => {
+        // Find if there is ANY booking with this profile
+        // We want to exclude them if they have a 'completed' booking
         const booking = allBookings?.find(b => (b.user_a === profile.id || b.user_b === profile.id));
         
+        // If booking is completed or cancelled, we SKIP them entirely from Matches screen
+        if (booking && (booking.status === 'completed' || booking.status === 'cancelled')) {
+          return; 
+        }
+
         if (!booking) {
+          // No booking yet = New Match
           fresh.push(profile);
-        } else if (booking.status === 'pending') {
+        } else if (booking.status === 'pending' || booking.status === 'active') {
+          // Pending/Active = Negotiation/Proposal
           const isMyInvite = booking.invited_by === user.id;
-          negs.push({ ...profile, booking, statusLabel: isMyInvite ? 'Waiting for response... ✈️' : 'Received proposal! 🎁' });
+          // If active, just show "Trip in progress" status
+          const status = booking.status === 'active' 
+            ? 'Trip Confirmed! ✈️' 
+            : (isMyInvite ? 'Waiting for response...' : 'Received proposal! 🎁');
+            
+          negs.push({ ...profile, booking, statusLabel: status });
         }
       });
 

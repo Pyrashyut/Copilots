@@ -28,10 +28,35 @@ export default function DiscoverScreen() {
 
   const fetchProfiles = async () => {
     try {
-      // Fetch only visible users
-      const { data } = await supabase.from('profiles').select('*').eq('is_visible', true).limit(20);
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1. Get IDs of people I have already swiped (like OR pass)
+      const { data: swipedData } = await supabase
+        .from('swipes')
+        .select('likee_id')
+        .eq('liker_id', user.id);
+      
+      const swipedIds = swipedData?.map(s => s.likee_id) || [];
+      // Also exclude myself
+      swipedIds.push(user.id);
+
+      // 2. Fetch profiles NOT in that list
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('is_visible', true)
+        .not('id', 'in', `(${swipedIds.join(',')})`)
+        .limit(20);
+
       setProfiles(data || []);
-    } finally { setLoading(false); }
+      setCurrentIndex(0); // Reset index on refresh
+    } catch (e) {
+      console.error(e);
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const viewProfile = () => {
@@ -40,16 +65,40 @@ export default function DiscoverScreen() {
     }
   };
 
-  const nextCard = () => {
+  // Logic to record the swipe in DB
+  const recordSwipe = async (direction: 'left' | 'right') => {
+    const currentProfile = profiles[currentIndex];
+    if (!currentProfile) return;
+
+    const isLike = direction === 'right';
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('swipes').upsert({
+          liker_id: user.id,
+          likee_id: currentProfile.id,
+          is_like: isLike
+        });
+      }
+    } catch (error) {
+      console.error("Error recording swipe:", error);
+    }
+
+    // Move to next card locally
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  const nextCard = (direction: 'left' | 'right') => {
     translateX.value = 0;
     translateY.value = 0;
-    setCurrentIndex(prev => prev + 1);
+    recordSwipe(direction);
   };
 
   const handleSwipe = (direction: 'left' | 'right') => {
     const outX = direction === 'right' ? width * 1.5 : -width * 1.5;
     translateX.value = withTiming(outX, { duration: 300 }, () => {
-      runOnJS(nextCard)();
+      runOnJS(nextCard)(direction);
     });
   };
 
@@ -69,7 +118,7 @@ export default function DiscoverScreen() {
     });
 
   const longPressGesture = Gesture.LongPress()
-    .minDuration(1000)
+    .minDuration(500)
     .onStart(() => { runOnJS(setIsImmersive)(true); })
     .onFinalize(() => { runOnJS(setIsImmersive)(false); });
 
@@ -113,7 +162,7 @@ export default function DiscoverScreen() {
                   <Text style={[styles.segmentLabel, activeSegment === 'trips' && styles.activeLabel]}>Trips</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity><Ionicons name="search-outline" size={22} color="#000" /></TouchableOpacity>
+              <TouchableOpacity onPress={fetchProfiles}><Ionicons name="refresh-outline" size={22} color="#000" /></TouchableOpacity>
             </View>
           )}
 
@@ -130,14 +179,14 @@ export default function DiscoverScreen() {
                   <View style={styles.emptyContainer}>
                     <Ionicons name="sparkles-outline" size={60} color="#DDD" />
                     <Text style={styles.emptyText}>No more explorers found nearby.</Text>
-                    <TouchableOpacity style={styles.refreshBtn} onPress={() => { setCurrentIndex(0); fetchProfiles(); }}>
+                    <TouchableOpacity style={styles.refreshBtn} onPress={fetchProfiles}>
                       <Text style={styles.refreshBtnText}>Refresh Discovery</Text>
                     </TouchableOpacity>
                   </View>
                 )}
               </View>
 
-              {/* ACTION BUTTONS: Now conditionally rendered based on hasMoreProfiles */}
+              {/* ACTION BUTTONS */}
               {!isImmersive && hasMoreProfiles && (
                 <View style={styles.actionRow}>
                   <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}>

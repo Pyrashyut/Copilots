@@ -35,21 +35,18 @@ export default function TripSelection() {
       if (!user) return;
       setCurrentUserId(user.id);
 
-      // Query for bookings between these two users
-      // Use separate queries to avoid Supabase OR query issues
+      // Query for ANY bookings between these two users (removed status filter)
       const { data: dataA, error: errorA } = await supabase
         .from('bookings')
         .select('*')
         .eq('user_a', user.id)
-        .eq('user_b', params.matchId)
-        .eq('status', 'pending');
+        .eq('user_b', params.matchId);
 
       const { data: dataB, error: errorB } = await supabase
         .from('bookings')
         .select('*')
         .eq('user_a', params.matchId)
-        .eq('user_b', user.id)
-        .eq('status', 'pending');
+        .eq('user_b', user.id);
 
       if (errorA || errorB) {
         console.error("Error fetching bookings:", errorA || errorB);
@@ -61,15 +58,9 @@ export default function TripSelection() {
       const allBookings = [...(dataA || []), ...(dataB || [])];
 
       if (allBookings.length > 0) {
-        // Sort by created_at to get the most recent
+        // Sort by created_at to get the most recent one
         allBookings.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setBooking(allBookings[0]);
-        
-        // Clean up any duplicates
-        if (allBookings.length > 1) {
-          const oldIds = allBookings.slice(1).map(b => b.id);
-          await supabase.from('bookings').delete().in('id', oldIds);
-        }
       } else {
         setBooking(null);
       }
@@ -81,7 +72,6 @@ export default function TripSelection() {
     }
   };
 
-  // Refresh booking state whenever screen comes into focus
   useFocusEffect(
     useCallback(() => {
       checkExistingBooking();
@@ -91,23 +81,30 @@ export default function TripSelection() {
   const handleInvite = async (tierId: string) => {
     if (!currentUserId) return;
     
+    // Safety check: Don't allow invite if there is already an active/completed booking
+    if (booking && (booking.status === 'active' || booking.status === 'completed')) {
+      Alert.alert("Cannot Invite", "You already have a trip history with this user.");
+      return;
+    }
+
     setLoading(true);
     try {
-      // Clear any existing bookings between these users first
-      // Use separate deletes to ensure both directions are cleared
+      // Clear OLD pending/cancelled bookings first
       await supabase
         .from('bookings')
         .delete()
         .eq('user_a', currentUserId)
-        .eq('user_b', params.matchId);
+        .eq('user_b', params.matchId)
+        .in('status', ['pending', 'cancelled']); // Only delete pending/cancelled
 
       await supabase
         .from('bookings')
         .delete()
         .eq('user_a', params.matchId)
-        .eq('user_b', currentUserId);
+        .eq('user_b', currentUserId)
+        .in('status', ['pending', 'cancelled']);
 
-      // Now create the new booking
+      // Create new booking
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -153,8 +150,6 @@ export default function TripSelection() {
   const handleDeclineOrCancel = async () => {
     if (!booking) return;
     
-    const bookingIdToDelete = booking.id; // Store this before any state changes
-    
     Alert.alert(
       "Confirm Action",
       "This will remove the current proposal.",
@@ -164,31 +159,13 @@ export default function TripSelection() {
           text: "Confirm", 
           style: "destructive", 
           onPress: async () => {
-            // Immediately clear the UI state FIRST (optimistic update)
-            setBooking(null);
+            setBooking(null); // Optimistic update
             setLoading(true);
-            
             try {
-              // Then delete from database
-              const { error } = await supabase
-                .from('bookings')
-                .delete()
-                .eq('id', bookingIdToDelete);
-              
-              if (error) {
-                console.error("Delete error:", error);
-                Alert.alert("Error", "Could not remove proposal: " + error.message);
-                // If delete failed, we need to refetch to restore the state
-                await checkExistingBooking();
-              } else {
-                // Success - booking is already null from optimistic update
-                console.log("Successfully deleted booking:", bookingIdToDelete);
-              }
+              await supabase.from('bookings').delete().eq('id', booking.id);
             } catch (e: any) {
               console.error("Exception during delete:", e);
-              Alert.alert("Error", e.message || "Could not remove proposal.");
-              // If delete failed, restore the state
-              await checkExistingBooking();
+              checkExistingBooking(); // Revert on error
             } finally {
               setLoading(false);
             }
@@ -210,50 +187,72 @@ export default function TripSelection() {
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="chevron-back" size={24} color="#000" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Plan with {params.name}</Text>
+          <Text style={styles.headerTitle}>
+            {booking?.status === 'completed' ? 'Trip History' : `Plan with ${params.name}`}
+          </Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {booking ? (
             <View style={styles.statusCard}>
-              <View style={styles.iconCircle}>
-                <Ionicons 
-                  name={booking.status === 'active' ? "checkmark-circle" : "mail-unread-outline"} 
-                  size={48} 
-                  color="#E8755A" 
-                />
-              </View>
-              <Text style={styles.statusTitle}>
-                {booking.status === 'active' ? 'Trip Confirmed!' : (booking.invited_by === currentUserId ? 'Invitation Sent' : 'New Invitation!')}
-              </Text>
-              <Text style={styles.statusDesc}>
-                {booking.status === 'active' 
-                  ? "You can now start your 5-minute Vibe Check chat." 
-                  : (booking.invited_by === currentUserId 
-                    ? `Waiting for ${params.name} to accept your ${booking.tier_id} trip.` 
-                    : `${params.name} wants to go on a ${booking.tier_id} trip with you!`)}
-              </Text>
-
-              <View style={styles.actionColumn}>
-                {booking.status === 'pending' && booking.invited_by !== currentUserId && (
-                  <TouchableOpacity style={styles.primaryBtn} onPress={handleAccept}>
-                    <Text style={styles.primaryBtnText}>Accept & Start Chat</Text>
-                  </TouchableOpacity>
-                )}
-                {booking.status === 'active' && (
-                  <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: booking.id } })}>
-                    <Text style={styles.primaryBtnText}>Open Chat</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.secondaryBtn} onPress={handleDeclineOrCancel}>
-                  <Text style={styles.secondaryBtnText}>
-                    {booking.invited_by === currentUserId ? 'Cancel Invitation' : 'Decline & Propose Other'}
+              {/* COMPLETED STATE */}
+              {booking.status === 'completed' ? (
+                <>
+                  <View style={[styles.iconCircle, { backgroundColor: '#F2F2F2' }]}>
+                    <Ionicons name="checkmark-done-circle" size={48} color="#3B9F16" />
+                  </View>
+                  <Text style={styles.statusTitle}>Trip Ended</Text>
+                  <Text style={styles.statusDesc}>
+                    You have successfully completed a {booking.tier_id} trip with {params.name}.
                   </Text>
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push('/(tabs)/trips')}>
+                    <Text style={[styles.secondaryBtnText, { color: '#161616' }]}>View in Past Trips</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                /* ACTIVE OR PENDING STATE */
+                <>
+                  <View style={styles.iconCircle}>
+                    <Ionicons 
+                      name={booking.status === 'active' ? "checkmark-circle" : "mail-unread-outline"} 
+                      size={48} 
+                      color="#E8755A" 
+                    />
+                  </View>
+                  <Text style={styles.statusTitle}>
+                    {booking.status === 'active' ? 'Trip Confirmed!' : (booking.invited_by === currentUserId ? 'Invitation Sent' : 'New Invitation!')}
+                  </Text>
+                  <Text style={styles.statusDesc}>
+                    {booking.status === 'active' 
+                      ? "You can now start your 5-minute Vibe Check chat." 
+                      : (booking.invited_by === currentUserId 
+                        ? `Waiting for ${params.name} to accept your ${booking.tier_id} trip.` 
+                        : `${params.name} wants to go on a ${booking.tier_id} trip with you!`)}
+                  </Text>
+
+                  <View style={styles.actionColumn}>
+                    {booking.status === 'pending' && booking.invited_by !== currentUserId && (
+                      <TouchableOpacity style={styles.primaryBtn} onPress={handleAccept}>
+                        <Text style={styles.primaryBtnText}>Accept & Start Chat</Text>
+                      </TouchableOpacity>
+                    )}
+                    {booking.status === 'active' && (
+                      <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: booking.id } })}>
+                        <Text style={styles.primaryBtnText}>Open Chat</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={handleDeclineOrCancel}>
+                      <Text style={styles.secondaryBtnText}>
+                        {booking.invited_by === currentUserId ? 'Cancel Invitation' : 'Decline & Propose Other'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </View>
           ) : (
+            /* NO BOOKING FOUND - SHOW TIERS */
             <>
               <Text style={styles.sectionTitle}>Choose Adventure</Text>
               <Text style={styles.sectionSubtitle}>Send an invitation to {params.name}. If they accept, you have 24 hours to chat.</Text>
