@@ -12,10 +12,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
 const { width } = Dimensions.get('window');
@@ -25,630 +24,283 @@ export default function ViewProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [hasLiked, setHasLiked] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
   const userId = params.userId as string;
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    fetchUserProfile();
+  }, [userId]);
 
-  const fetchProfile = async () => {
+  const fetchUserProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setCurrentUserId(user.id);
-
-      const { data: profileData } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-
-      setProfile(profileData);
-
-      const { data: blockData } = await supabase
-        .from('blocks')
-        .select('id')
-        .eq('blocker_id', user.id)
-        .eq('blocked_id', userId)
-        .single();
-
-      setIsBlocked(!!blockData);
-
-      const { data: likeData } = await supabase
-        .from('swipes')
-        .select('id')
-        .eq('liker_id', user.id)
-        .eq('likee_id', userId)
-        .eq('is_like', true)
-        .single();
-
-      setHasLiked(!!likeData);
-    } catch (error) {
-      console.error('Fetch error:', error);
+      if (error) throw error;
+      setProfile(data);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLike = async () => {
-    if (!currentUserId) return;
-
-    try {
-      if (hasLiked) {
-        await supabase
-          .from('swipes')
-          .delete()
-          .eq('liker_id', currentUserId)
-          .eq('likee_id', userId);
-
-        setHasLiked(false);
-        Alert.alert('Removed', 'Removed from liked');
-      } else {
-        await supabase.from('swipes').insert({
-          liker_id: currentUserId,
-          likee_id: userId,
-          is_like: true,
-        });
-
-        setHasLiked(true);
-
-        const { data: isMatch } = await supabase.rpc('check_match', {
-          current_user_id: currentUserId,
-          target_user_id: userId,
-        });
-
-        if (isMatch) {
-          Alert.alert(
-            "✈️ IT'S A MATCH!",
-            `You and ${profile.username} both want to explore together!`,
-            [{ text: 'Amazing!', style: 'default' }]
-          );
-        } else {
-          Alert.alert('Liked! ❤️', `You liked ${profile.username}`);
-        }
-      }
-    } catch (error) {
-      console.error('Like error:', error);
-    }
-  };
-
-  const handleBlock = async () => {
-    if (!currentUserId) return;
-
+  const handleAction = (type: 'like' | 'pass') => {
+    // Note: You can add actual DB logic for liking here later
     Alert.alert(
-      isBlocked ? 'Unblock User' : 'Block User',
-      isBlocked
-        ? `Unblock ${profile.username}? They will be able to see your profile again.`
-        : `Block ${profile.username}? You won't see each other anymore.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isBlocked ? 'Unblock' : 'Block',
-          style: isBlocked ? 'default' : 'destructive',
-          onPress: async () => {
-            try {
-              if (isBlocked) {
-                await supabase
-                  .from('blocks')
-                  .delete()
-                  .eq('blocker_id', currentUserId)
-                  .eq('blocked_id', userId);
-
-                setIsBlocked(false);
-                Alert.alert('Unblocked', `${profile.username} has been unblocked`);
-              } else {
-                await supabase.from('blocks').insert({
-                  blocker_id: currentUserId,
-                  blocked_id: userId,
-                });
-
-                await supabase
-                  .from('swipes')
-                  .delete()
-                  .or(`and(liker_id.eq.${currentUserId},likee_id.eq.${userId}),and(liker_id.eq.${userId},likee_id.eq.${currentUserId})`);
-
-                setIsBlocked(true);
-                Alert.alert('Blocked', `${profile.username} has been blocked`, [
-                  { text: 'OK', onPress: () => router.back() },
-                ]);
-              }
-            } catch (error) {
-              console.error('Block error:', error);
-            }
-          },
-        },
-      ]
+      type === 'like' ? "Liked! ❤️" : "Passed", 
+      `You ${type === 'like' ? 'liked' : 'passed on'} ${profile?.username || 'this user'}.`,
+      [{ text: "OK", onPress: () => router.back() }]
     );
   };
 
-  const handleReport = () => {
-    Alert.alert('Report User', 'What would you like to report?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Inappropriate Content', onPress: () => submitReport('inappropriate') },
-      { text: 'Fake Profile', onPress: () => submitReport('fake') },
-      { text: 'Harassment', onPress: () => submitReport('harassment') },
-    ]);
-  };
-
-  const submitReport = async (reason: string) => {
-    if (!currentUserId) return;
-
-    try {
-      await supabase.from('reports').insert({
-        reporter_id: currentUserId,
-        reported_id: userId,
-        reason,
-      });
-
-      Alert.alert('Reported', 'Thank you for your report. We will review it.');
-    } catch (error) {
-      console.error('Report error:', error);
-    }
-  };
-
-  if (loading) {
-    return (
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
-        style={styles.center}
-      >
-        <Image
-          source={require('../../assets/images/logo.png')}
-          style={styles.logoLoader}
-          resizeMode="contain"
-        />
-        <ActivityIndicator size="large" color={Colors.highlight.gold} />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </LinearGradient>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
-        style={styles.center}
-      >
-        <Text style={styles.emptyTitle}>Profile not found</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
-      </LinearGradient>
-    );
-  }
+  if (loading) return (
+    <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>
+  );
 
   return (
-    <LinearGradient
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
-      <View style={styles.bgDecoration1} />
-      <View style={styles.bgDecoration2} />
+    <View style={styles.container}>
+      {/* Figma Blur Backgrounds */}
+      <View style={[styles.blurPath, styles.blurCoral]} />
+      <View style={[styles.blurPath, styles.blurYellow]} />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <View style={styles.header}>
+        {/* AppBar */}
+        <View style={styles.appBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
+            <Ionicons name="chevron-back" size={24} color="#000" />
           </TouchableOpacity>
-
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>{profile.username}</Text>
-            <Text style={styles.headerSubtitle}>
-              {profile.age ? `${profile.age} • ` : ''}
-              {profile.location || 'Traveler'}
-            </Text>
-          </View>
-
-          <TouchableOpacity onPress={handleReport} style={styles.iconBtn}>
-            <Ionicons name="flag-outline" size={24} color={Colors.neutral.white} />
+          <Text style={styles.appBarTitle}>Explorer Profile</Text>
+          <TouchableOpacity style={styles.iconBtn}>
+            <Ionicons name="flag-outline" size={22} color="#000" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Photo card */}
-          <View style={styles.photoCard}>
-            {profile.photos && profile.photos.length > 0 ? (
-              <>
-                <Image
-                  source={{ uri: profile.photos[currentImageIndex] }}
-                  style={styles.mainPhoto}
-                  resizeMode="cover"
-                />
-
-                {profile.photos.length > 1 && (
-                  <>
-                    <View style={styles.photoIndicators}>
-                      {profile.photos.map((_: any, index: number) => (
-                        <View
-                          key={index}
-                          style={[
-                            styles.indicator,
-                            index === currentImageIndex && styles.activeIndicator,
-                          ]}
-                        />
-                      ))}
-                    </View>
-
-                    {currentImageIndex > 0 && (
-                      <TouchableOpacity
-                        style={[styles.photoNavBtn, styles.photoNavLeft]}
-                        onPress={() => setCurrentImageIndex((prev) => prev - 1)}
-                      >
-                        <Ionicons name="chevron-back" size={26} color={Colors.neutral.white} />
-                      </TouchableOpacity>
-                    )}
-
-                    {currentImageIndex < profile.photos.length - 1 && (
-                      <TouchableOpacity
-                        style={[styles.photoNavBtn, styles.photoNavRight]}
-                        onPress={() => setCurrentImageIndex((prev) => prev + 1)}
-                      >
-                        <Ionicons name="chevron-forward" size={26} color={Colors.neutral.white} />
-                      </TouchableOpacity>
-                    )}
-                  </>
-                )}
-              </>
-            ) : (
-              <View style={[styles.mainPhoto, styles.placeholderPhoto]}>
-                <Ionicons name="person" size={90} color="rgba(255,255,255,0.35)" />
-              </View>
-            )}
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
+          {/* Header Section */}
+          <View style={styles.headerSection}>
+            <Image 
+              source={{ uri: profile?.photos?.[0] || 'https://via.placeholder.com/150' }} 
+              style={styles.avatar} 
+            />
+            <View style={styles.nameRow}>
+              <Text style={styles.nameText}>{profile?.username || 'Explorer'}, {profile?.age || '24'}</Text>
+              <Ionicons name="checkmark-circle" size={22} color="#FF9100" />
+            </View>
+            <Text style={styles.locationText}>{profile?.location || 'London, UK'}</Text>
+            <Text style={styles.bioText}>{profile?.bio || "Adventurer at heart. Looking for someone to explore hidden gems with."}</Text>
           </View>
 
-          {/* Glass plate with all details */}
-          <View style={styles.glassPlate}>
-            <Text style={styles.plateName}>
-              {profile.username}
-              {profile.age ? `, ${profile.age}` : ''}
-            </Text>
-
-            {profile.job_title && (
-              <View style={styles.infoRow}>
-                <Ionicons name="briefcase" size={20} color={Colors.highlight.gold} />
-                <Text style={styles.infoText}>{profile.job_title}</Text>
+          {/* Stats Bar (FIXED: Changed div to View) */}
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <View style={styles.statHeading}>
+                <Ionicons name="star" size={16} color="#FF9100" />
+                <Text style={styles.statValue}>4.9</Text>
               </View>
-            )}
-
-            {profile.location && (
-              <View style={styles.infoRow}>
-                <Ionicons name="location" size={20} color={Colors.highlight.gold} />
-                <Text style={styles.infoText}>{profile.location}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
+            </View>
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statBox}>
+              <View style={styles.statHeading}>
+                <Ionicons name="airplane" size={16} color="#FF9100" />
+                <Text style={styles.statValue}>8</Text>
               </View>
-            )}
-
-            {profile.bio && (
-              <View style={styles.bioSection}>
-                <Text style={styles.sectionTitle}>About Me</Text>
-                <Text style={styles.bioText}>{profile.bio}</Text>
+              <Text style={styles.statLabel}>Trips</Text>
+            </View>
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statBox}>
+              <View style={styles.statHeading}>
+                <Ionicons name="heart" size={16} color="#FF9100" />
+                <Text style={styles.statValue}>128</Text>
               </View>
-            )}
+              <Text style={styles.statLabel}>Likes</Text>
+            </View>
+          </View>
 
-            {/* UPDATED PREFERENCES SECTION */}
-            {profile.preferences && Object.keys(profile.preferences).length > 0 && (
-              <View style={styles.preferencesSection}>
-                <Text style={styles.sectionTitle}>Travel Preferences</Text>
-                <View style={styles.preferencesGrid}>
-                  {Object.entries(profile.preferences).map(([key, value]) => (
-                    <View key={key} style={styles.preferenceChip}>
-                      <Text style={styles.preferenceLabel}>{key}</Text>
-                      <Text style={styles.preferenceValue}>{value as string}</Text>
-                    </View>
-                  ))}
+          {/* Travel Gallery */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Travel Gallery</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {profile?.photos?.map((photo: string, i: number) => (
+                <View key={i} style={styles.imageCard}>
+                  <Image source={{ uri: photo }} style={styles.imageThumb} resizeMode="cover" />
+                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.4)']} style={styles.imageOverlay} />
+                  <View style={styles.imageTag}>
+                    <Text style={styles.imageTagText}>{i + 1}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Experience Matrix */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Experience Matrix</Text>
+            <View style={styles.matrixRow}>
+              {/* Loved */}
+              <View style={[styles.matrixCard, styles.matrixLoved]}>
+                <View style={[styles.matrixIconBox, { backgroundColor: '#3B9F16' }]}>
+                  <Ionicons name="thumbs-up" size={14} color="#FFF" />
+                </View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Done & Loved</Text>
+                  <Text style={styles.matrixItems}>🧗 Climbing • 🍕 Food Tours</Text>
                 </View>
               </View>
-            )}
+
+              {/* Want to Try */}
+              <View style={[styles.matrixCard, styles.matrixTry]}>
+                <View style={[styles.matrixIconBox, { backgroundColor: '#EEC72E' }]}>
+                  <Ionicons name="list" size={14} color="#000" />
+                </View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Want to Try</Text>
+                  <Text style={styles.matrixItems}>🛶 Kayaking • 🌌 Stargazing</Text>
+                </View>
+              </View>
+
+              {/* Not For Me */}
+              <View style={[styles.matrixCard, styles.matrixDislike]}>
+                <View style={[styles.matrixIconBox, { backgroundColor: '#E03724' }]}>
+                  <Ionicons name="thumbs-down" size={14} color="#FFF" />
+                </View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Not For Me</Text>
+                  <Text style={styles.matrixItems}>🏨 All-Inclusive Resorts</Text>
+                </View>
+              </View>
+            </View>
           </View>
+
+          {/* Bottom spacer for fixed buttons */}
+          <View style={{ height: 120 }} />
         </ScrollView>
 
-        <View style={styles.actionsContainer}>
-          <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={handleBlock}>
-              <View style={[styles.actionButton, styles.block]}>
-                <Ionicons
-                  name={isBlocked ? 'checkmark-circle' : 'ban'}
-                  size={36}
-                  color={isBlocked ? Colors.secondary.teal : Colors.highlight.error}
-                />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleLike}>
-              <View
-                style={[
-                  styles.actionButton,
-                  hasLiked ? styles.liked : styles.like,
-                ]}
-              >
-                <Ionicons
-                  name={hasLiked ? 'heart' : 'heart-outline'}
-                  size={40}
-                  color={Colors.neutral.white}
-                />
-              </View>
-            </TouchableOpacity>
-          </View>
+        {/* Floating Action Buttons */}
+        <View style={styles.footerActions}>
+          <TouchableOpacity 
+            style={styles.passBtn} 
+            onPress={() => handleAction('pass')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close" size={32} color="#FFF" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.likeBtn} 
+            onPress={() => handleAction('like')}
+            activeOpacity={0.9}
+          >
+            <LinearGradient 
+              colors={['#E8755A', '#CA573D']} 
+              start={{x: 0, y: 0}} 
+              end={{x: 1, y: 0}}
+              style={styles.likeGradient}
+            >
+              <Ionicons name="heart" size={28} color="#FFF" />
+              <Text style={styles.likeBtnText}>Connect</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
+
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  bgDecoration1: {
-    position: 'absolute',
-    top: -80,
-    right: -80,
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(78, 205, 196, 0.10)',
-  },
-  bgDecoration2: {
-    position: 'absolute',
-    bottom: 80,
-    left: -120,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(255, 217, 61, 0.08)',
-  },
-
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
-  logoLoader: {
-    width: 180,
-    height: 60,
-    marginBottom: 24,
-  },
+  blurPath: { position: 'absolute', width: 300, height: 300, borderRadius: 150, opacity: 0.4 },
+  blurCoral: { top: '15%', left: -80, backgroundColor: 'rgba(255, 122, 73, 0.08)' },
+  blurYellow: { top: -50, right: -50, backgroundColor: 'rgba(255, 243, 73, 0.08)' },
 
-  header: {
-    height: 110,
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerText: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: Colors.neutral.white,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 2,
-  },
+  appBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, height: 60 },
+  appBarTitle: { fontSize: 16, fontWeight: '700', color: '#000' },
+  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
 
-  scrollContent: {
-    paddingBottom: 160,
-  },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 10 },
+  headerSection: { alignItems: 'center', gap: 8, marginBottom: 24 },
+  avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#F2F2F2' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameText: { fontSize: 26, fontWeight: '700', color: '#000' },
+  locationText: { fontSize: 15, color: '#000', opacity: 0.6 },
+  bioText: { fontSize: 15, color: '#000', opacity: 0.8, textAlign: 'center', paddingHorizontal: 20, lineHeight: 22 },
 
-  photoCard: {
-    marginHorizontal: 24,
-    marginTop: 12,
-    marginBottom: 28,
-    borderRadius: 32,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.09)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.35,
-    shadowRadius: 22,
-    elevation: 14,
+  statsRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    backgroundColor: '#F7F7F7', 
+    borderRadius: 20, 
+    paddingVertical: 18, 
+    paddingHorizontal: 10 
   },
+  statBox: { flex: 1, alignItems: 'center', gap: 4 },
+  statHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#000' },
+  statLabel: { fontSize: 12, color: '#000', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 1 },
+  statDivider: { width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.08)' },
 
-  mainPhoto: {
-    width: '100%',
-    height: width * 1.15,
-    borderRadius: 32,
-  },
+  section: { marginTop: 32, gap: 12 },
+  sectionTitle: { fontSize: 20, fontWeight: '700', color: '#000' },
 
-  placeholderPhoto: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
+  imageCard: { width: 150, height: 210, borderRadius: 20, marginRight: 12, overflow: 'hidden', backgroundColor: '#F2F2F2' },
+  imageThumb: { ...StyleSheet.absoluteFillObject },
+  imageOverlay: { ...StyleSheet.absoluteFillObject },
+  imageTag: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+  imageTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
 
-  photoIndicators: {
-    position: 'absolute',
-    bottom: 16,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  indicator: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.45)',
-  },
-  activeIndicator: {
-    backgroundColor: Colors.neutral.white,
-    width: 22,
-  },
+  matrixRow: { gap: 12 },
+  matrixCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },
+  matrixLoved: { backgroundColor: 'rgba(59, 159, 22, 0.08)' },
+  matrixTry: { backgroundColor: 'rgba(238, 199, 46, 0.08)' },
+  matrixDislike: { backgroundColor: 'rgba(224, 55, 36, 0.08)' },
+  matrixIconBox: { width: 34, height: 34, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  matrixInfo: { marginLeft: 15, flex: 1 },
+  matrixLabel: { fontSize: 11, color: '#000', opacity: 0.5, marginBottom: 2, textTransform: 'uppercase', fontWeight: '600' },
+  matrixItems: { fontSize: 14, fontWeight: '700', color: '#161616' },
 
-  photoNavBtn: {
-    position: 'absolute',
-    top: '50%',
-    transform: [{ translateY: -20 }],
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  footerActions: { 
+    position: 'absolute', 
+    bottom: 30, 
+    left: 20, 
+    right: 20, 
+    flexDirection: 'row', 
+    gap: 12 
   },
-  photoNavLeft: { left: 16 },
-  photoNavRight: { right: 16 },
-
-  glassPlate: {
-    marginHorizontal: 24,
-    marginBottom: 140,
-    padding: 28,
-    paddingTop: 0,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.20)',
-    backdropFilter: 'blur(14px)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.32,
-    shadowRadius: 18,
-    elevation: 12,
-  },
-
-  plateName: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.neutral.white,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 18,
-  },
-
-  infoText: {
-    fontSize: 17,
-    color: 'rgba(255,255,255,0.95)',
-    fontWeight: '500',
-  },
-
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.neutral.white,
-    marginBottom: 14,
-    marginTop: 8,
-  },
-
-  bioSection: {
-    marginTop: 12,
-  },
-
-  bioText: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.90)',
-    lineHeight: 26,
-  },
-
-  preferencesSection: {
-    marginTop: 28,
-  },
-
-  preferencesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-
-  // UPDATED STYLES FOR PREFERENCES
-  preferenceChip: {
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-    minWidth: '45%',
-  },
-  preferenceLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  preferenceValue: {
-    fontSize: 15,
-    color: Colors.neutral.white,
-    fontWeight: '700',
-  },
-
-  actionsContainer: {
-    paddingBottom: 38,
-    paddingTop: 12,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 48,
-  },
-  actionButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
+  passBtn: { 
+    width: 64, 
+    height: 64, 
+    backgroundColor: '#161616', 
+    borderRadius: 32, 
+    justifyContent: 'center', 
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 5
   },
-  block: {
-    backgroundColor: Colors.neutral.white,
+  likeBtn: { 
+    flex: 1, 
+    height: 64, 
+    borderRadius: 32, 
+    overflow: 'hidden',
+    shadowColor: '#E8755A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5
   },
-  like: {
-    backgroundColor: Colors.highlight.success,
-  },
-  liked: {
-    backgroundColor: Colors.highlight.error,
-  },
-
-  loadingText: {
-    marginTop: 16,
-    color: Colors.neutral.white,
-    fontSize: 16,
-  },
-  emptyTitle: {
-    fontSize: 28,
-    color: Colors.neutral.white,
-    marginBottom: 24,
-  },
-  backBtn: {
-    backgroundColor: Colors.primary.navy,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-  },
-  backBtnText: {
-    color: Colors.neutral.white,
-    fontWeight: '700',
-    fontSize: 16,
-  },
+  likeGradient: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
+  likeBtnText: { color: '#FFF', fontSize: 18, fontWeight: '700' }
 });

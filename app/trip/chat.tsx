@@ -1,13 +1,12 @@
+// app/trip/chat.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  AlertButton,
   FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -15,230 +14,105 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/Colors';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 export default function ChatScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [timeLeft, setTimeLeft] = useState<string>("Loading...");
   const [userId, setUserId] = useState<string | null>(null);
-  const [booking, setBooking] = useState<any>(null);
-  const [showMenu, setShowMenu] = useState(false);
-
+  const [timeLeft, setTimeLeft] = useState('24h 00m');
+  const [isExpired, setIsExpired] = useState(false);
+  
   const flatListRef = useRef<FlatList>(null);
   const bookingId = params.bookingId as string;
 
   useEffect(() => {
     initChat();
-
-    const interval = setInterval(updateTimer, 60000);
+    const timerInterval = setInterval(updateTimer, 60000); // Update every minute
+    updateTimer();
 
     const channel = supabase
-      .channel(`chat_room:${bookingId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'messages',
-          filter: `booking_id=eq.${bookingId}`,
-        },
-        (payload) => {
-          handleRealtimeEvent(payload);
-        }
-      )
-      .subscribe();
+      .channel(`chat:${bookingId}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', schema: 'public', table: 'messages', filter: `booking_id=eq.${bookingId}` 
+      }, (payload) => {
+        setMessages((prev) => [...prev, payload.new]);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 200);
+      }).subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(interval);
+    return () => { 
+      supabase.removeChannel(channel); 
+      clearInterval(timerInterval);
     };
   }, []);
 
   const initChat = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
     setUserId(user.id);
 
-    const { data: bookingData } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', bookingId)
-      .single();
-
-    setBooking(bookingData);
-    updateTimer(bookingData);
-
-    let clearedAt = null;
-    if (bookingData) {
-      if (user.id === bookingData.user_a) clearedAt = bookingData.user_a_cleared_at;
-      if (user.id === bookingData.user_b) clearedAt = bookingData.user_b_cleared_at;
-    }
-
-    let query = supabase
+    const { data } = await supabase
       .from('messages')
       .select('*')
       .eq('booking_id', bookingId)
       .order('created_at', { ascending: true });
-
-    if (clearedAt) {
-      query = query.gt('created_at', clearedAt);
-    }
-
-    const { data: msgs } = await query;
-    if (msgs) {
-      const visibleMsgs = msgs.filter(
-        (m) => !m.hidden_by || !m.hidden_by.includes(user.id)
-      );
-      setMessages(visibleMsgs);
+    
+    if (data) {
+        setMessages(data);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 200);
     }
   };
 
-  const handleRealtimeEvent = (payload: any) => {
-    if (payload.eventType === 'INSERT') {
-      setMessages((prev) => {
-        if (prev.find((m) => m.id === payload.new.id)) return prev;
-        return [...prev, payload.new];
-      });
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    } else if (payload.eventType === 'DELETE') {
-      if (payload.old && payload.old.id) {
-        setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-      }
-    } else if (payload.eventType === 'UPDATE') {
-      if (userId && payload.new.hidden_by?.includes(userId)) {
-        setMessages((prev) => prev.filter((m) => m.id !== payload.new.id));
-      }
-    }
-  };
+  const updateTimer = async () => {
+    const { data: booking } = await supabase.from('bookings').select('chat_started_at').eq('id', bookingId).single();
 
-  const updateTimer = (manualBookingData?: any) => {
-    const b = manualBookingData || booking;
-    if (b?.chat_started_at) {
-      const start = new Date(b.chat_started_at).getTime();
+    if (booking?.chat_started_at) {
+      const startTime = new Date(booking.chat_started_at).getTime();
       const now = new Date().getTime();
-      const diff = start + 24 * 60 * 60 * 1000 - now;
+      const difference = (startTime + 24 * 60 * 60 * 1000) - now; // 24 Hours
 
-      if (diff <= 0) {
-        setTimeLeft("Expired");
+      if (difference <= 0) {
+        setTimeLeft('Expired');
+        setIsExpired(true);
       } else {
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const hours = Math.floor(difference / (1000 * 60 * 60));
+        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
         setTimeLeft(`${hours}h ${minutes}m`);
       }
     }
   };
 
   const sendMessage = async () => {
+    if (isExpired) return Alert.alert("Time Expired", "The 24-hour chat window has closed.");
     if (!newMessage.trim() || !userId) return;
-    const text = newMessage.trim();
+    const text = newMessage;
     setNewMessage('');
-
-    const { error } = await supabase.from('messages').insert({
-      booking_id: bookingId,
-      sender_id: userId,
-      content: text,
-    });
-
-    if (error) {
-      Alert.alert("Error", "Failed to send");
-      setNewMessage(text);
-    }
-  };
-
-  const handleMessageLongPress = (msg: any) => {
-    const isMe = msg.sender_id === userId;
-    const buttons: AlertButton[] = [
-      { text: "Cancel", style: "cancel" },
-    ];
-
-    if (isMe) {
-      buttons.push({
-        text: "Unsend (Everyone)",
-        style: "destructive",
-        onPress: () => void deleteMessage(msg.id, "everyone"),
-      });
-    }
-
-    buttons.push({
-      text: "Delete (For Me)",
-      style: "default",
-      onPress: () => void deleteMessage(msg.id, "me", msg.hidden_by),
-    });
-
-    Alert.alert("Message Options", isMe ? "Choose an action" : "Manage this message", buttons);
-  };
-
-  const deleteMessage = async (msgId: number, type: 'everyone' | 'me', currentHiddenBy?: string[]) => {
-    setMessages((prev) => prev.filter((m) => m.id !== msgId));
-
-    if (type === 'everyone') {
-      const { error } = await supabase.from('messages').delete().eq('id', msgId);
-      if (error) console.error("Delete failed:", error);
-    } else {
-      const newHidden = currentHiddenBy ? [...currentHiddenBy, userId] : [userId];
-      await supabase
-        .from('messages')
-        .update({ hidden_by: newHidden })
-        .eq('id', msgId);
-    }
-  };
-
-  const handleClearChat = async () => {
-    Alert.alert("Clear Chat?", "This will hide current history for you.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear",
-        style: "destructive",
-        onPress: async () => {
-          setMessages([]);
-          setShowMenu(false);
-          const field = booking.user_a === userId ? 'user_a_cleared_at' : 'user_b_cleared_at';
-          await supabase
-            .from('bookings')
-            .update({ [field]: new Date().toISOString() })
-            .eq('id', bookingId);
-        },
-      },
-    ]);
+    await supabase.from('messages').insert({ booking_id: bookingId, sender_id: userId, content: text });
   };
 
   return (
-    <LinearGradient
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
-      {/* Decorative Background Elements */}
-      <View style={styles.bgDecoration1} />
-      <View style={styles.bgDecoration2} />
-
+    <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
-          </TouchableOpacity>
-
-          <View style={styles.timerBadge}>
-            <Ionicons name="time" size={16} color="white" />
-            <Text style={styles.timerText}>{timeLeft}</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}><Ionicons name="chevron-back" size={24} color="#000" /></TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>Vibe Check</Text>
+            <View style={[styles.timerBadge, isExpired && { backgroundColor: '#E03724' }]}>
+                <Ionicons name="time" size={14} color="#FFF" />
+                <Text style={styles.timerText}>{timeLeft}</Text>
+            </View>
           </View>
-
-          <TouchableOpacity onPress={() => setShowMenu(true)} style={styles.iconBtn}>
-            <Ionicons name="ellipsis-vertical" size={24} color={Colors.neutral.white} />
-          </TouchableOpacity>
+          <View style={{ width: 40 }} />
         </View>
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
           style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           <FlatList
             ref={flatListRef}
@@ -248,247 +122,45 @@ export default function ChatScreen() {
             renderItem={({ item }) => {
               const isMe = item.sender_id === userId;
               return (
-                <TouchableOpacity
-                  onLongPress={() => handleMessageLongPress(item)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.bubble, isMe ? styles.myBubble : styles.theirBubble]}>
-                    <Text style={isMe ? styles.myText : styles.theirText}>{item.content}</Text>
-                  </View>
-                  {isMe && <Text style={styles.seenText}>Sent</Text>}
-                </TouchableOpacity>
+                <View style={[styles.bubble, isMe ? styles.myBubble : styles.theirBubble]}>
+                  <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>{item.content}</Text>
+                </View>
               );
             }}
           />
 
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Type a message..."
-              placeholderTextColor={Colors.neutral.greyLight}
-              value={newMessage}
-              onChangeText={setNewMessage}
-              multiline
-            />
-            <TouchableOpacity
-              onPress={sendMessage}
-              style={[styles.sendBtn, !newMessage.trim() && styles.sendBtnDisabled]}
-              disabled={!newMessage.trim()}
-            >
-              <Ionicons name="send" size={20} color="white" />
-            </TouchableOpacity>
+          <View style={[styles.inputWrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+             <View style={styles.inputContainer}>
+                <TextInput style={styles.input} placeholder="Type a message..." value={newMessage} onChangeText={setNewMessage} multiline />
+                <TouchableOpacity onPress={sendMessage} style={styles.sendBtn} disabled={!newMessage.trim() || isExpired}>
+                    <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.sendGradient}><Ionicons name="arrow-up" size={20} color="#FFF" /></LinearGradient>
+                </TouchableOpacity>
+             </View>
           </View>
         </KeyboardAvoidingView>
-
-        <Modal transparent visible={showMenu} animationType="fade">
-          <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowMenu(false)}>
-            <View style={styles.menuContainer}>
-              <TouchableOpacity style={styles.menuItem} onPress={handleClearChat}>
-                <Ionicons name="trash-outline" size={20} color={Colors.highlight.error} />
-                <Text style={styles.menuTextDestructive}>Clear Chat</Text>
-              </TouchableOpacity>
-              <View style={styles.divider} />
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  Alert.alert("Reported", "User has been flagged.");
-                  setShowMenu(false);
-                }}
-              >
-                <Ionicons name="flag-outline" size={20} color={Colors.primary.navy} />
-                <Text style={styles.menuText}>Report User</Text>
-              </TouchableOpacity>
-              <View style={styles.divider} />
-              <TouchableOpacity style={styles.menuItem} onPress={() => setShowMenu(false)}>
-                <Text style={styles.menuText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  bgDecoration1: {
-    position: 'absolute',
-    top: -100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
-  },
-  bgDecoration2: {
-    position: 'absolute',
-    bottom: 100,
-    left: -150,
-    width: 350,
-    height: 350,
-    borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
-  },
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-  },
-  iconBtn: {
-    padding: 6,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timerBadge: {
-    flexDirection: 'row',
-    backgroundColor: Colors.highlight.warning,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-    alignItems: 'center',
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  timerText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-
-  listContent: {
-    paddingHorizontal: 15,
-    paddingTop: 10,
-    paddingBottom: 120,           // ← key fix: prevents last message being hidden under input
-  },
-
-  bubble: {
-    maxWidth: '80%',
-    padding: 13,
-    borderRadius: 20,
-    marginBottom: 4,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  myBubble: {
-    alignSelf: 'flex-end',
-    backgroundColor: Colors.primary.navy,
-    borderBottomRightRadius: 4,
-  },
-  theirBubble: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderBottomLeftRadius: 4,
-  },
-  myText: { color: 'white', fontSize: 16 },
-  theirText: { color: Colors.primary.navy, fontSize: 16 },
-  seenText: {
-    alignSelf: 'flex-end',
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 12,
-    marginRight: 8,
-  },
-
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,  // ← extra bottom padding (iOS home indicator)
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(220,220,230,0.6)',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#f8f9fc',
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    marginRight: 10,
-    maxHeight: 120,
-    fontSize: 16,
-    color: Colors.primary.navy,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-  },
-  sendBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.primary.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 4,
-  },
-  sendBtnDisabled: {
-    backgroundColor: '#a0a0c0',
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuContainer: {
-    width: '82%',
-    backgroundColor: 'white',
-    borderRadius: 18,
-    paddingVertical: 8,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  menuText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.primary.navy,
-  },
-  menuTextDestructive: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.highlight.error,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginHorizontal: 20,
-  },
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+  headerInfo: { alignItems: 'center', gap: 4 },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#161616' },
+  timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#161616', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  timerText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  listContent: { padding: 16, paddingBottom: 20 },
+  bubble: { maxWidth: '80%', padding: 14, borderRadius: 20, marginBottom: 12 },
+  myBubble: { alignSelf: 'flex-end', backgroundColor: '#E8755A', borderBottomRightRadius: 4 },
+  theirBubble: { alignSelf: 'flex-start', backgroundColor: '#F2F2F2', borderBottomLeftRadius: 4 },
+  messageText: { fontSize: 15, lineHeight: 20 },
+  myText: { color: '#FFF', fontWeight: '500' },
+  theirText: { color: '#161616' },
+  inputWrapper: { paddingHorizontal: 16, paddingTop: 10, backgroundColor: '#FEFEFE', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.03)' },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: '#F2F2F2', borderRadius: 24, paddingLeft: 16, paddingRight: 6, paddingVertical: 6 },
+  input: { flex: 1, maxHeight: 100, paddingVertical: 8, fontSize: 15, color: '#161616' },
+  sendBtn: { marginBottom: 2 },
+  sendGradient: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' }
 });

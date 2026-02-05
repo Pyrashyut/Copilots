@@ -3,24 +3,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
-import { Colors } from '../constants/Colors';
 
 const { width, height } = Dimensions.get('window');
 
-interface Profile {
-  id: string;
-  username: string;
-  photos: string[];
-  job_title?: string;
-  age?: number;
-  location?: string;
-  bio?: string;
+interface SwipeCardProps {
+  profile: any;
+  isImmersive: boolean; 
 }
 
-export default function SwipeCard({ profile }: { profile: Profile }) {
+export default function SwipeCard({ profile, isImmersive }: SwipeCardProps) {
   const photoUrl = profile.photos && profile.photos.length > 0 
     ? profile.photos[0] 
-    : 'https://via.placeholder.com/400x600/4ECDC4/FFFFFF?text=No+Photo';
+    : 'https://via.placeholder.com/400x600/161616/FFFFFF?text=No+Photo';
 
   return (
     <View style={styles.card}>
@@ -30,154 +24,100 @@ export default function SwipeCard({ profile }: { profile: Profile }) {
         resizeMode="cover"
       />
       
-      {/* Photo Count Indicator */}
-      {profile.photos && profile.photos.length > 1 && (
-        <View style={styles.photoIndicator}>
-          <Ionicons name="images" size={14} color={Colors.neutral.white} />
-          <Text style={styles.photoCount}>{profile.photos.length}</Text>
-        </View>
-      )}
+      {/* Hide overlays entirely during immersive hold */}
+      {!isImmersive && (
+        <>
+          {/* Top subtle vignette */}
+          <LinearGradient colors={['rgba(0,0,0,0.4)', 'transparent']} style={styles.topOverlay} />
 
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.85)']}
-        style={styles.gradient}
-      >
-        <View style={styles.infoContainer}>
-          {/* Name & Age */}
-          <View style={styles.nameRow}>
-            <Text style={styles.name}>
-              {profile.username}
-              {profile.age ? `, ${profile.age}` : ''}
-            </Text>
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={24} color={Colors.secondary.teal} />
-            </View>
-          </View>
-          
-          {/* Job Title */}
-          {profile.job_title && (
-            <View style={styles.infoRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="briefcase" size={14} color={Colors.primary.navy} />
+          {/* Bottom Info Section */}
+          <LinearGradient 
+            colors={['transparent', 'rgba(0,0,0,0.7)', '#000000']} 
+            style={styles.bottomOverlay}
+          >
+            <View style={styles.infoContainer}>
+              
+              {/* Name, Age & Verified Badge */}
+              <View style={styles.row}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.nameText}>
+                    {profile.username}{profile.age ? `, ${profile.age}` : ''}
+                  </Text>
+                  <Ionicons name="checkmark-circle" size={22} color="#FF9100" />
+                </View>
+                <View style={styles.dot} />
+                <Text style={styles.locationText}>{profile.location || 'London'}</Text>
               </View>
-              <Text style={styles.infoText}>{profile.job_title}</Text>
-            </View>
-          )}
 
-          {/* Location */}
-          {profile.location && (
-            <View style={styles.infoRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="location" size={14} color={Colors.primary.navy} />
+              {/* Travel Preference (Gold text from Figma) */}
+              <View style={styles.prefRow}>
+                <Ionicons name="map-outline" size={18} color="#D8AF45" />
+                <Text style={styles.prefText}>Prefers Local Escape</Text>
               </View>
-              <Text style={styles.infoText}>{profile.location}</Text>
-            </View>
-          )}
 
-          {/* Bio Preview */}
-          {profile.bio && (
-            <View style={styles.bioContainer}>
+              {/* Bio Preview */}
               <Text style={styles.bioText} numberOfLines={2}>
-                {profile.bio}
+                {profile.bio || "Street food hunter. Sunrise chaser. Looking for a travel companion."}
               </Text>
+
+              {/* Matrix Tags (Pills) */}
+              <View style={styles.pillContainer}>
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>Loves Hiking</Text>
+                </View>
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>Wants to try Diving</Text>
+                </View>
+              </View>
             </View>
-          )}
-        </View>
-      </LinearGradient>
+          </LinearGradient>
+        </>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: width * 0.9,
-    height: height * 0.64,
+    width: width * 0.92,
+    height: height * 0.65, // Adjusted to avoid bottom button overlap on iOS
     borderRadius: 24,
+    backgroundColor: '#161616',
     overflow: 'hidden',
-    backgroundColor: Colors.neutral.white,
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
     elevation: 10,
   },
-  image: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: Colors.neutral.border,
+  image: { ...StyleSheet.absoluteFillObject },
+  topOverlay: { position: 'absolute', top: 0, left: 0, right: 0, height: 100 },
+  bottomOverlay: { 
+    position: 'absolute', 
+    bottom: 0, 
+    left: 0, 
+    right: 0, 
+    height: 350, 
+    justifyContent: 'flex-end', 
+    padding: 24 
   },
-  photoIndicator: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 4,
+  infoContainer: { gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  nameText: { color: '#FFF', fontSize: 26, fontWeight: '700' },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' },
+  locationText: { color: '#FFF', fontSize: 18, opacity: 0.8 },
+  prefRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  prefText: { color: '#D8AF45', fontSize: 15, fontWeight: '600' },
+  bioText: { color: '#FFF', fontSize: 15, opacity: 0.8, lineHeight: 20 },
+  pillContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  pill: { 
+    backgroundColor: 'rgba(216, 175, 69, 0.20)', 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(216, 175, 69, 0.1)'
   },
-  photoCount: {
-    color: Colors.neutral.white,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  gradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingTop: 100,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
-  },
-  infoContainer: {
-    gap: 8,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.neutral.white,
-    flex: 1,
-  },
-  verifiedBadge: {
-    marginLeft: 8,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  iconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.neutral.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoText: {
-    fontSize: 16,
-    color: Colors.neutral.white,
-    fontWeight: '500',
-    flex: 1,
-  },
-  bioContainer: {
-    marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  bioText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 20,
-  },
+  pillText: { color: '#FFF', fontSize: 13, fontWeight: '500' }
 });

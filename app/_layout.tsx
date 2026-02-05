@@ -1,11 +1,9 @@
 // app/_layout.tsx
 import { Session } from '@supabase/supabase-js';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as NavigationBar from 'expo-navigation-bar';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Platform } from 'react-native';
-import { Colors } from '../constants/Colors';
+import { ActivityIndicator, Image, Platform, View } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 export default function RootLayout() {
@@ -126,17 +124,14 @@ export default function RootLayout() {
 
   if (!dataLoaded) {
     return (
-      <LinearGradient 
-        colors={Colors.gradient.adventure}
-        style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-      >
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FEFEFE' }}>
         <Image 
           source={require('../assets/images/logo.png')}
-          style={{ width: 200, height: 80, marginBottom: 40 }}
+          style={{ width: 60, height: 60, marginBottom: 20 }}
           resizeMode="contain"
         />
-        <ActivityIndicator size="large" color={Colors.highlight.gold} />
-      </LinearGradient>
+        <ActivityIndicator size="small" color="#E8755A" />
+      </View>
     );
   }
 

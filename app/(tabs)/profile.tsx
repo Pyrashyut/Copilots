@@ -3,9 +3,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
 const { width } = Dimensions.get('window');
@@ -15,350 +23,201 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Reload profile whenever the tab comes into focus (in case of edits)
+  const fetchProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      setProfile(data);
+    } catch (err) {
+      console.error("Profile Fetch Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchProfile();
     }, [])
   );
 
-  const fetchProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
-      setProfile(data);
-    } catch (error) {
-      console.error('Profile fetch error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSettings = () => {
-    // Navigate to the hidden settings tab
-    router.push('/settings');
-  };
-
-  const handleEdit = () => {
-    router.push('/profile/edit');
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary.navy} />
-      </View>
-    );
-  }
-
-  // Fallback if no photos
-  const mainPhoto = profile?.photos?.[0] || 'https://via.placeholder.com/400';
+  if (loading) return (
+    <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>
+  );
 
   return (
-    <LinearGradient 
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
-      <View style={styles.bgDecoration1} />
-      
-      <SafeAreaView style={styles.safeArea}>
-        {/* HEADER */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          <TouchableOpacity 
-            style={styles.settingsButton} 
-            onPress={handleSettings}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="settings-outline" size={24} color={Colors.neutral.white} />
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        {/* AppBar */}
+        <View style={styles.appBar}>
+          <TouchableOpacity onPress={() => router.push('/profile/edit' as any)}>
+            <Ionicons name="create-outline" size={24} color="#161616" />
+          </TouchableOpacity>
+          <Text style={styles.appBarTitle}>My Profile</Text>
+          <TouchableOpacity onPress={() => router.push('/settings' as any)}>
+            <Ionicons name="settings-outline" size={24} color="#161616" />
           </TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
-          {/* PROFILE CARD (View as others see) */}
-          <View style={styles.profileCard}>
-            <View style={styles.imageContainer}>
-              <Image source={{ uri: mainPhoto }} style={styles.profileImage} resizeMode="cover" />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                style={styles.imageOverlay}
-              >
-                <Text style={styles.name}>
-                  {profile?.username}
-                  {profile?.age ? `, ${profile.age}` : ''}
-                </Text>
-                <Text style={styles.location}>
-                  <Ionicons name="location" size={14} color={Colors.highlight.gold} /> {profile?.location || 'No Location'}
-                </Text>
-              </LinearGradient>
+          {/* Header Section */}
+          <View style={styles.headerSection}>
+            <Image 
+              source={{ uri: profile?.photos?.[0] || 'https://via.placeholder.com/150' }} 
+              style={styles.avatar} 
+            />
+            <View style={styles.nameRow}>
+              <Text style={styles.nameText}>{profile?.username || 'User'}, {profile?.age || '20'}</Text>
+              <Ionicons name="checkmark-circle" size={22} color="#FF9100" />
             </View>
+            <Text style={styles.locationText}>{profile?.location || 'Add Location'}</Text>
+            <Text style={styles.bioText}>{profile?.bio || 'No bio yet.'}</Text>
+          </View>
 
-            {/* Quick Stats */}
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>5.0</Text>
-                <Text style={styles.statLabel}>Rating</Text>
+          {/* Stats Detail Row */}
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <View style={styles.statHeading}>
+                <Ionicons name="star" size={16} color="#FF9100" />
+                <Text style={styles.statValue}>4.8</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Rating</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <View style={styles.statHeading}>
+                <Ionicons name="airplane" size={16} color="#FF9100" />
                 <Text style={styles.statValue}>0</Text>
-                <Text style={styles.statLabel}>Trips</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>100%</Text>
-                <Text style={styles.statLabel}>Verified</Text>
+              <Text style={styles.statLabel}>Trips</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <View style={styles.statHeading}>
+                <Ionicons name="heart" size={16} color="#FF9100" />
+                <Text style={styles.statValue}>0</Text>
               </View>
+              <Text style={styles.statLabel}>Likes</Text>
             </View>
           </View>
 
-          {/* EDIT BUTTON */}
-          <TouchableOpacity style={styles.editButton} onPress={handleEdit} activeOpacity={0.8}>
-            <LinearGradient
-              colors={Colors.gradient.sunset}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.editGradient}
-            >
-              <Ionicons name="create-outline" size={20} color={Colors.neutral.white} />
-              <Text style={styles.editText}>Edit Profile</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* BIO SECTION */}
-          {profile?.bio && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>About Me</Text>
-              <View style={styles.contentCard}>
-                <Text style={styles.bodyText}>{profile.bio}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* EXPERIENCE MATRIX PREVIEW */}
+          {/* Travel Gallery Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Travel Preferences</Text>
-            <View style={styles.contentCard}>
-              <View style={styles.prefRow}>
-                <Ionicons name="airplane" size={20} color={Colors.primary.navy} />
-                <Text style={styles.prefText}>
-                  {profile?.travel_traits?.pacing === 'left' ? 'Relaxed' : 'Action Packed'}
-                </Text>
-              </View>
-              <View style={styles.divider} />
-              <View style={styles.prefRow}>
-                <Ionicons name="wallet" size={20} color={Colors.primary.navy} />
-                <Text style={styles.prefText}>
-                  {profile?.travel_traits?.budget === 'left' ? 'Budget' : 'Luxury'}
-                </Text>
-              </View>
+            <Text style={styles.sectionTitle}>Travel Gallery</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {profile?.photos?.map((photo: string, i: number) => (
+                <View key={i} style={styles.imageCard}>
+                  <Image source={{ uri: photo }} style={styles.imageThumb} resizeMode="cover" />
+                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.4)']} style={styles.imageOverlay} />
+                  <View style={styles.imageTag}>
+                    <Text style={styles.imageTagText}>{i + 1}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Experience Matrix Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Experience Matrix</Text>
+            <View style={styles.matrixRow}>
               
-              {/* Show count of rated items */}
-              <View style={styles.matrixSummary}>
-                <Text style={styles.matrixText}>
-                  {Object.keys(profile?.preferences || {}).length} experiences rated in Matrix
-                </Text>
+              {/* Category 1: Loved */}
+              <View style={[styles.matrixCard, styles.matrixLoved]}>
+                <View style={[styles.matrixIconBox, { backgroundColor: '#3B9F16' }]}>
+                  <Ionicons name="thumbs-up" size={14} color="#FFF" />
+                </View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Done & Loved</Text>
+                  <Text style={styles.matrixItems}>
+                    {profile?.preferences?.loved?.length > 0 ? profile.preferences.loved.join(' • ') : 'None yet'}
+                  </Text>
+                </View>
               </View>
+
+              {/* Category 2: Want to Try */}
+              <View style={[styles.matrixCard, styles.matrixTry]}>
+                <View style={[styles.matrixIconBox, { backgroundColor: '#EEC72E' }]}>
+                  <Ionicons name="list" size={14} color="#161616" />
+                </View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Want to Try</Text>
+                  <Text style={styles.matrixItems}>
+                    {profile?.preferences?.try?.length > 0 ? profile.preferences.try.join(' • ') : 'None yet'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Category 3: Not For Me (FIXED: Added this block) */}
+              <View style={[styles.matrixCard, styles.matrixDislike]}>
+                <View style={[styles.matrixIconBox, { backgroundColor: '#E03724' }]}>
+                  <Ionicons name="thumbs-down" size={14} color="#FFF" />
+                </View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Not For Me</Text>
+                  <Text style={styles.matrixItems}>
+                    {profile?.preferences?.dislike?.length > 0 ? profile.preferences.dislike.join(' • ') : 'None yet'}
+                  </Text>
+                </View>
+              </View>
+
             </View>
           </View>
-          
-          <View style={{height: 40}} />
+
+          <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  bgDecoration1: {
-    position: 'absolute',
-    top: -100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
-  },
-  safeArea: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: Colors.neutral.white,
-  },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  appBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
+  appBarTitle: { fontSize: 18, fontWeight: '700', color: '#161616' },
+  scrollContent: { paddingHorizontal: 16 },
 
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
+  headerSection: { alignItems: 'center', gap: 8, marginBottom: 24, marginTop: 10 },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F2F2F2' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameText: { fontSize: 24, fontWeight: '700', color: '#161616' },
+  locationText: { fontSize: 14, color: '#161616', opacity: 0.6 },
+  bioText: { fontSize: 14, color: '#161616', opacity: 0.8, textAlign: 'center', paddingHorizontal: 40, lineHeight: 20 },
 
-  /* PROFILE CARD */
-  profileCard: {
-    backgroundColor: Colors.neutral.white,
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+  statsRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingVertical: 12,
+    backgroundColor: '#F9F9F9',
+    borderRadius: 20,
+    paddingHorizontal: 10
   },
-  imageContainer: {
-    height: 350,
-    position: 'relative',
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imageOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    paddingTop: 60,
-  },
-  name: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: Colors.neutral.white,
-    marginBottom: 4,
-  },
-  location: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
-  },
-  
-  /* STATS */
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    alignItems: 'center',
-    paddingVertical: 16,
-    backgroundColor: Colors.neutral.white,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.primary.navy,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.neutral.grey,
-    marginTop: 2,
-    textTransform: 'uppercase',
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: Colors.neutral.border,
-  },
+  statBox: { flex: 1, alignItems: 'center', gap: 4 },
+  statHeading: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statValue: { fontSize: 20, fontWeight: '700', color: '#161616' },
+  statLabel: { fontSize: 13, color: '#161616', opacity: 0.5 },
+  statDivider: { width: 1, height: 30, backgroundColor: 'rgba(0,0,0,0.04)' },
 
-  /* EDIT BUTTON */
-  editButton: {
-    marginBottom: 24,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  editGradient: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
-  editText: {
-    color: Colors.neutral.white,
-    fontWeight: '700',
-    fontSize: 16,
-  },
+  section: { marginTop: 28, gap: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#161616' },
 
-  /* SECTIONS */
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  contentCard: {
-    backgroundColor: Colors.neutral.white,
-    borderRadius: 16,
-    padding: 20,
-  },
-  bodyText: {
-    fontSize: 15,
-    color: Colors.primary.navy,
-    lineHeight: 22,
-  },
-  prefRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 4,
-  },
-  prefText: {
-    fontSize: 16,
-    color: Colors.primary.navy,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.neutral.border,
-    marginVertical: 12,
-  },
-  matrixSummary: {
-    marginTop: 12,
-    backgroundColor: Colors.neutral.trailDust,
-    padding: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  matrixText: {
-    fontSize: 13,
-    color: Colors.neutral.grey,
-    fontWeight: '600',
-  }
+  imageCard: { width: 130, height: 180, borderRadius: 16, marginRight: 10, overflow: 'hidden', backgroundColor: '#F2F2F2' },
+  imageThumb: { ...StyleSheet.absoluteFillObject },
+  imageOverlay: { ...StyleSheet.absoluteFillObject },
+  imageTag: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  imageTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+
+  matrixRow: { gap: 10 },
+  matrixCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },
+  matrixLoved: { backgroundColor: 'rgba(59, 159, 22, 0.08)' },
+  matrixTry: { backgroundColor: 'rgba(238, 199, 46, 0.08)' },
+  matrixDislike: { backgroundColor: 'rgba(224, 55, 36, 0.08)' },
+  matrixIconBox: { width: 34, height: 34, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
+  matrixInfo: { marginLeft: 15, flex: 1 },
+  matrixLabel: { fontSize: 11, opacity: 0.5, marginBottom: 2, textTransform: 'uppercase', fontWeight: '600' },
+  matrixItems: { fontSize: 13, fontWeight: '700', color: '#161616' },
 });

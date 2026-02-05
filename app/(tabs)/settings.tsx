@@ -1,553 +1,135 @@
 // app/(tabs)/settings.tsx
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { Colors } from '../../constants/Colors';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
-  const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
-  const [likedUsers, setLikedUsers] = useState<any[]>([]);
-  const [isVisible, setIsVisible] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [showBlockedModal, setShowBlockedModal] = useState(false);
-  const [showLikedModal, setShowLikedModal] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (profileData) {
-        setProfile(profileData);
-        setIsVisible(profileData.is_visible ?? true);
-      }
-
-      const { data: blocks } = await supabase
-        .from('blocks')
-        .select(`
-          blocked_id,
-          blocked_profile:profiles!blocks_blocked_id_fkey(username, photos)
-        `)
-        .eq('blocker_id', user.id);
-
-      setBlockedUsers(blocks || []);
-
-      const { data: likes } = await supabase
-        .from('swipes')
-        .select(`
-          likee_id,
-          likee_profile:profiles!swipes_likee_id_fkey(username, photos)
-        `)
-        .eq('liker_id', user.id)
-        .eq('is_like', true);
-
-      setLikedUsers(likes || []);
-    } catch (error) {
-      console.error('Fetch error:', error);
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      setProfile(data);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleVisibility = async (value: boolean) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  useFocusEffect(useCallback(() => { fetchProfile(); }, []));
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_visible: value })
-        .eq('id', user.id);
-
-      if (!error) {
-        setIsVisible(value);
-        Alert.alert('Updated', value ? 'You are now visible to others' : 'You are now hidden from discovery');
-      }
-    } catch (error) {
-      console.error('Update error:', error);
-    }
-  };
-
-  const handleUnblock = async (blockedId: string, username: string) => {
-    Alert.alert('Unblock User', `Unblock ${username}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Unblock',
-        onPress: async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-
-          await supabase
-            .from('blocks')
-            .delete()
-            .eq('blocker_id', user.id)
-            .eq('blocked_id', blockedId);
-
-          fetchData();
-        }
-      }
-    ]);
-  };
-
-  const handleUnlike = async (likeeId: string, username: string) => {
-    Alert.alert('Remove Like', `Remove ${username} from liked?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-
-          await supabase
-            .from('swipes')
-            .delete()
-            .eq('liker_id', user.id)
-            .eq('likee_id', likeeId);
-
-          fetchData();
-        }
-      }
-    ]);
+  const toggleVisibility = async (val: boolean) => {
+    setProfile({ ...profile, is_visible: val });
+    await supabase.from('profiles').update({ is_visible: val }).eq('id', profile.id);
   };
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Logout", 
+        style: "destructive", 
         onPress: async () => {
           await supabase.auth.signOut();
-        }
+          router.replace('/(auth)/login');
+        } 
       }
     ]);
   };
 
+  if (loading) return <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>;
+
   return (
-    <LinearGradient 
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
-      {/* Decorative Background Elements */}
-      <View style={styles.bgDecoration1} />
-      <View style={styles.bgDecoration2} />
-
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Settings</Text>
-            <Text style={styles.headerSubtitle}>Manage your preferences</Text>
-          </View>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        {/* Profile Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Profile</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           
-          <TouchableOpacity 
-            style={styles.card}
-            onPress={() => router.push('/profile/edit-pfp')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="camera-outline" size={20} color={Colors.primary.navy} />
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Change Profile Picture</Text>
-                <Text style={styles.cardSubtitle}>Crop and adjust your main photo</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.neutral.grey} />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.card}
-            onPress={() => router.push('/profile/edit')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="person-outline" size={20} color={Colors.primary.navy} />
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Edit Profile</Text>
-                <Text style={styles.cardSubtitle}>Update your photos and info</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.neutral.grey} />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Privacy Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Privacy</Text>
-          
+          <Text style={styles.sectionLabel}>Account Settings</Text>
           <View style={styles.card}>
-            <View style={styles.cardRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="eye-outline" size={20} color={Colors.primary.navy} />
+            <TouchableOpacity style={styles.item} onPress={() => router.push('/profile/edit' as any)}>
+              <View style={styles.itemLeft}>
+                <Ionicons name="person-outline" size={20} color="#161616" />
+                <Text style={styles.itemLabel}>Edit Profile Information</Text>
               </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Visible to Others</Text>
-                <Text style={styles.cardSubtitle}>
-                  {isVisible ? 'Others can see your profile' : 'Hidden from discovery'}
-                </Text>
+              <Ionicons name="chevron-forward" size={18} color="#CCC" />
+            </TouchableOpacity>
+            
+            <View style={[styles.item, { borderBottomWidth: 0 }]}>
+              <View style={styles.itemLeft}>
+                <Ionicons name="eye-outline" size={20} color="#161616" />
+                <Text style={styles.itemLabel}>Visible in Discovery</Text>
               </View>
-              <Switch
-                value={isVisible}
-                onValueChange={toggleVisibility}
-                trackColor={{ false: Colors.neutral.greyLight, true: Colors.secondary.teal }}
-                thumbColor={Colors.neutral.white}
-                ios_backgroundColor={Colors.neutral.greyLight}
+              <Switch 
+                value={profile?.is_visible} 
+                onValueChange={toggleVisibility} 
+                trackColor={{ true: '#E8755A' }} 
               />
             </View>
           </View>
 
-          <TouchableOpacity 
-            style={styles.card}
-            onPress={() => setShowBlockedModal(true)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardRow}>
-              <View style={[styles.iconCircle, styles.dangerIconCircle]}>
-                <Ionicons name="ban-outline" size={20} color={Colors.highlight.error} />
+          <Text style={styles.sectionLabel}>Security & Privacy</Text>
+          <View style={styles.card}>
+             <TouchableOpacity style={[styles.item, { borderBottomWidth: 0 }]}>
+              <View style={styles.itemLeft}>
+                <Ionicons name="notifications-outline" size={20} color="#161616" />
+                <Text style={styles.itemLabel}>Notification Preferences</Text>
               </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Blocked Users</Text>
-                <Text style={styles.cardSubtitle}>{blockedUsers.length} blocked</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.neutral.grey} />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Activity Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Activity</Text>
-          
-          <TouchableOpacity 
-            style={styles.card}
-            onPress={() => setShowLikedModal(true)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardRow}>
-              <View style={[styles.iconCircle, styles.heartIconCircle]}>
-                <Ionicons name="heart-outline" size={20} color={Colors.highlight.error} />
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>People You Liked</Text>
-                <Text style={styles.cardSubtitle}>{likedUsers.length} liked</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.neutral.grey} />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          
-          <TouchableOpacity 
-            style={[styles.card, styles.dangerCard]}
-            onPress={handleSignOut}
-            activeOpacity={0.8}
-          >
-            <View style={styles.cardRow}>
-              <View style={[styles.iconCircle, styles.dangerIconCircle]}>
-                <Ionicons name="log-out-outline" size={20} color={Colors.highlight.error} />
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={[styles.cardTitle, styles.dangerText]}>Sign Out</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Blocked Users Modal */}
-      <Modal visible={showBlockedModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Blocked Users</Text>
-              <TouchableOpacity onPress={() => setShowBlockedModal(false)}>
-                <Ionicons name="close" size={28} color={Colors.primary.navy} />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView style={styles.modalContent}>
-              {blockedUsers.length === 0 ? (
-                <Text style={styles.emptyText}>No blocked users</Text>
-              ) : (
-                blockedUsers.map((block) => (
-                  <View key={block.blocked_id} style={styles.userCard}>
-                    <Image 
-                      source={{ uri: block.blocked_profile?.photos?.[0] || 'https://via.placeholder.com/50' }}
-                      style={styles.userAvatar}
-                    />
-                    <Text style={styles.userName}>{block.blocked_profile?.username}</Text>
-                    <TouchableOpacity
-                      style={styles.unblockBtn}
-                      onPress={() => handleUnblock(block.blocked_id, block.blocked_profile?.username)}
-                    >
-                      <Text style={styles.unblockText}>Unblock</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </ScrollView>
+              <Ionicons name="chevron-forward" size={18} color="#CCC" />
+            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
 
-      {/* Liked Users Modal */}
-      <Modal visible={showLikedModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>People You Liked</Text>
-              <TouchableOpacity onPress={() => setShowLikedModal(false)}>
-                <Ionicons name="close" size={28} color={Colors.primary.navy} />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView style={styles.modalContent}>
-              {likedUsers.length === 0 ? (
-                <Text style={styles.emptyText}>No likes yet</Text>
-              ) : (
-                likedUsers.map((like) => (
-                  <View key={like.likee_id} style={styles.userCard}>
-                    <TouchableOpacity 
-                      onPress={() => {
-                        setShowLikedModal(false);
-                        router.push({ pathname: '/profile/view', params: { userId: like.likee_id } });
-                      }}
-                      style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-                    >
-                      <Image 
-                        source={{ uri: like.likee_profile?.photos?.[0] || 'https://via.placeholder.com/50' }}
-                        style={styles.userAvatar}
-                      />
-                      <Text style={styles.userName}>{like.likee_profile?.username}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.unlikeBtn}
-                      onPress={() => handleUnlike(like.likee_id, like.likee_profile?.username)}
-                    >
-                      <Ionicons name="heart-dislike" size={20} color={Colors.neutral.white} />
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </LinearGradient>
+          {/* SIGN OUT BUTTON */}
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={20} color="#E03724" />
+            <Text style={styles.logoutText}>Sign Out of Frolicr</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.version}>Version 1.0.0 (January 2026)</Text>
+          <View style={{ height: 50 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  
-  // Background Decorations
-  bgDecoration1: {
-    position: 'absolute',
-    top: -100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
-  },
-  bgDecoration2: {
-    position: 'absolute',
-    bottom: 100,
-    left: -150,
-    width: 350,
-    height: 350,
-    borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
-  },
-  
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: { 
-    paddingHorizontal: 24, 
-    paddingBottom: 40,
-    paddingTop: 70,
-  },
-  header: { 
-    marginBottom: 24,
-  },
-  headerTitle: { 
-    fontSize: 28, 
-    fontWeight: '800', 
-    color: Colors.neutral.white,
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
-  },
-  section: { 
-    marginBottom: 32 
-  },
-  sectionTitle: { 
-    fontSize: 14, 
-    fontWeight: '700', 
-    color: 'rgba(255, 255, 255, 0.9)', 
-    marginBottom: 12, 
-    textTransform: 'uppercase', 
-    letterSpacing: 1,
-  },
-  card: {
-    backgroundColor: Colors.neutral.white,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  dangerCard: {
-    borderWidth: 2,
-    borderColor: 'rgba(255, 71, 87, 0.3)',
-  },
-  cardRow: { 
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '700' },
+  scrollContent: { paddingHorizontal: 20 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', opacity: 0.4, letterSpacing: 1, marginBottom: 12, marginTop: 24 },
+  card: { backgroundColor: '#F9F9F9', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },
+  item: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.03)' },
+  itemLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  itemLabel: { fontSize: 16, fontWeight: '500', color: '#161616' },
+  logoutBtn: { 
+    marginTop: 40, 
+    padding: 18, 
+    backgroundColor: 'rgba(224, 55, 36, 0.08)', 
+    borderRadius: 15, 
+    alignItems: 'center', 
     flexDirection: 'row', 
-    alignItems: 'center' 
+    justifyContent: 'center', 
+    gap: 10 
   },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.neutral.trailDust,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  dangerIconCircle: {
-    backgroundColor: 'rgba(255, 71, 87, 0.1)',
-  },
-  heartIconCircle: {
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
-  },
-  cardContent: { 
-    flex: 1 
-  },
-  cardTitle: { 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: Colors.primary.navy, 
-    marginBottom: 2 
-  },
-  dangerText: {
-    color: Colors.highlight.error,
-  },
-  cardSubtitle: { 
-    fontSize: 13, 
-    color: Colors.neutral.grey 
-  },
-  
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'flex-end' 
-  },
-  modalContainer: {
-    backgroundColor: Colors.neutral.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.border,
-  },
-  modalTitle: { 
-    fontSize: 20, 
-    fontWeight: '700', 
-    color: Colors.primary.navy 
-  },
-  modalContent: { 
-    padding: 20 
-  },
-  emptyText: { 
-    textAlign: 'center', 
-    color: Colors.neutral.grey, 
-    fontSize: 15, 
-    paddingVertical: 40 
-  },
-  
-  userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.neutral.trailDust,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  userAvatar: { 
-    width: 50, 
-    height: 50, 
-    borderRadius: 25, 
-    backgroundColor: Colors.neutral.border, 
-    marginRight: 12 
-  },
-  userName: { 
-    flex: 1, 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: Colors.primary.navy 
-  },
-  unblockBtn: {
-    backgroundColor: Colors.secondary.teal,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  unblockText: { 
-    color: Colors.neutral.white, 
-    fontWeight: '600', 
-    fontSize: 14 
-  },
-  unlikeBtn: {
-    backgroundColor: Colors.highlight.error,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  logoutText: { color: '#E03724', fontWeight: '700', fontSize: 16 },
+  version: { textAlign: 'center', marginTop: 30, opacity: 0.2, fontSize: 12 }
 });

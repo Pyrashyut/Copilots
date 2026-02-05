@@ -3,465 +3,176 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming
-} from 'react-native-reanimated';
-
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import SwipeCard from '../../components/SwipeCard';
-import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
 const { width } = Dimensions.get('window');
-const SWIPE_THRESHOLD = width * 0.25;
+const SWIPE_THRESHOLD = width * 0.3;
 
 export default function DiscoverScreen() {
   const router = useRouter();
+  const [activeSegment, setActiveSegment] = useState<'people' | 'trips'>('people');
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isImmersive, setIsImmersive] = useState(false);
 
-  // Animation values
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
-  useEffect(() => {
-    fetchProfiles();
-  }, []);
+  useEffect(() => { fetchProfiles(); }, []);
 
   const fetchProfiles = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: swipes } = await supabase
-        .from('swipes')
-        .select('likee_id')
-        .eq('liker_id', user.id);
-
-      const { data: blockedByMe } = await supabase
-        .from('blocks')
-        .select('blocked_id')
-        .eq('blocker_id', user.id);
-
-      const { data: blockedMe } = await supabase
-        .from('blocks')
-        .select('blocker_id')
-        .eq('blocked_id', user.id);
-
-      const excludeIds = [
-        ...(swipes?.map(s => s.likee_id) || []),
-        ...(blockedByMe?.map(b => b.blocked_id) || []),
-        ...(blockedMe?.map(b => b.blocker_id) || []),
-        user.id,
-      ];
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .not('id', 'in', `(${excludeIds.join(',')})`)
-        .eq('is_visible', true)
-        .limit(100);
-
-      if (error) throw error;
+      const { data } = await supabase.from('profiles').select('*').limit(20);
       setProfiles(data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+    } finally { setLoading(false); }
+  };
+
+  const viewProfile = () => {
+    if (profiles[currentIndex]) {
+      router.push({ pathname: '/profile/view', params: { userId: profiles[currentIndex].id } });
     }
   };
 
-  const performSwipe = (direction: 'left' | 'right') => {
-    if (currentIndex >= profiles.length) return;
-
-    const profile = profiles[currentIndex];
-    const isLike = direction === 'right';
-
-    // Move to next card in state
-    setCurrentIndex(i => i + 1);
-    
-    // Reset animation values instantly for the next card
+  const nextCard = () => {
     translateX.value = 0;
     translateY.value = 0;
-
-    // Async DB operations
-    (async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        await supabase.from('swipes').insert({
-          liker_id: user.id,
-          likee_id: profile.id,
-          is_like: isLike,
-        });
-
-        if (isLike) {
-          const { data: isMatch } = await supabase.rpc('check_match', {
-            current_user_id: user.id,
-            target_user_id: profile.id,
-          });
-
-          if (isMatch) {
-            Alert.alert(
-              "✈️ IT'S A MATCH!",
-              `You and ${profile.username} both want to explore together!`
-            );
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    })();
+    setCurrentIndex(prev => prev + 1);
   };
 
-  // Button press handler (programmatic swipe)
-  const handleButtonSwipe = (direction: 'left' | 'right') => {
-    const multiplier = direction === 'right' ? 1 : -1;
-    
-    // Animate off screen then trigger logic
-    translateX.value = withTiming(multiplier * width * 1.5, { duration: 300 }, () => {
-      runOnJS(performSwipe)(direction);
+  const handleSwipe = (direction: 'left' | 'right') => {
+    const outX = direction === 'right' ? width * 1.5 : -width * 1.5;
+    translateX.value = withTiming(outX, { duration: 300 }, () => {
+      runOnJS(nextCard)();
     });
   };
 
-  // Gesture handler
-  const gesture = Gesture.Pan()
-    .onChange((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
+  // Gestures
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      translateX.value = e.translationX;
+      translateY.value = e.translationY;
     })
-    .onEnd((event) => {
-      if (Math.abs(event.translationX) > SWIPE_THRESHOLD) {
-        // Swipe detected
-        const direction = event.translationX > 0 ? 'right' : 'left';
-        const multiplier = direction === 'right' ? 1 : -1;
-        
-        translateX.value = withTiming(multiplier * width * 1.5, { duration: 200 }, () => {
-          runOnJS(performSwipe)(direction);
-        });
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) > SWIPE_THRESHOLD) {
+        runOnJS(handleSwipe)(e.translationX > 0 ? 'right' : 'left');
       } else {
-        // Return to center
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
       }
     });
 
-  // Animated styles for the top card
-  const cardStyle = useAnimatedStyle(() => {
-    const rotate = interpolate(
-      translateX.value,
-      [-width / 2, 0, width / 2],
-      [-10, 0, 10],
-      Extrapolation.CLAMP
-    );
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(1000)
+    .onStart(() => { runOnJS(setIsImmersive)(true); })
+    .onFinalize(() => { runOnJS(setIsImmersive)(false); });
 
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotate}deg` },
-      ],
-    };
-  });
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => { runOnJS(viewProfile)(); });
 
-  // Styles for the "Like/Nope" overlays on the card
-  const likeOpacityStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [0, width / 4], [0, 1], Extrapolation.CLAMP),
+  const composedGesture = Gesture.Exclusive(
+    panGesture, 
+    Gesture.Simultaneous(tapGesture, longPressGesture)
+  );
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { rotate: `${translateX.value / 20}deg` }
+    ]
   }));
 
-  const nopeOpacityStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [-width / 4, 0], [1, 0], Extrapolation.CLAMP),
-  }));
-
-  const viewProfile = () => {
-    if (currentIndex >= profiles.length) return;
-    router.push({
-      pathname: '/profile/view',
-      params: { userId: profiles[currentIndex].id },
-    });
-  };
-
-  if (loading) {
-    return (
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
-        style={styles.center}
-      >
-        <Image
-          source={require('../../assets/images/logo.png')}
-          style={styles.logoLoader}
-          resizeMode="contain"
-        />
-        <ActivityIndicator size="large" color={Colors.highlight.gold} />
-        <Text style={styles.loadingText}>Finding your matches...</Text>
-      </LinearGradient>
-    );
-  }
-
-  if (currentIndex >= profiles.length) {
-    return (
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
-        style={styles.center}
-      >
-        <Text style={styles.emptyTitle}>No More Pilots</Text>
-      </LinearGradient>
-    );
-  }
+  if (loading) return (
+    <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>
+  );
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
-        locations={[0, 0.3, 0.6, 1]}
-        style={styles.container}
-      >
-        {/* ===== FIXED HEADER ===== */}
-        <View style={styles.header}>
-          <Image
-            source={require('../../assets/images/logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+      <View style={styles.container}>
+        <View style={[styles.blurPath, styles.blurCoral]} />
+        <View style={[styles.blurPath, styles.blurYellow]} />
 
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Discover</Text>
-            <Text style={styles.headerSubtitle}>Find your travel companion</Text>
-          </View>
-
-          <View style={styles.counter}>
-            <Ionicons name="people" size={16} color={Colors.neutral.white} />
-            <Text style={styles.counterText}>
-              {profiles.length - currentIndex}
-            </Text>
-          </View>
-        </View>
-
-        {/* ===== CARD AREA ===== */}
-        <View style={styles.cardArea}>
-          
-          {/* Next Card (Background) - Visual Only */}
-          {currentIndex + 1 < profiles.length && (
-            <View style={[styles.cardWrapper, styles.nextCard]}>
-              <SwipeCard profile={profiles[currentIndex + 1]} />
+        <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+          {!isImmersive && (
+            <View style={styles.appBar}>
+              <Image source={require('../../assets/images/logo.png')} style={styles.headerLogo} />
+              <View style={styles.segmentedPicker}>
+                <TouchableOpacity style={[styles.segment, activeSegment === 'people' && styles.activeSegment]} onPress={() => setActiveSegment('people')}>
+                  <Text style={[styles.segmentLabel, activeSegment === 'people' && styles.activeLabel]}>People</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.segment, activeSegment === 'trips' && styles.activeSegment]} onPress={() => setActiveSegment('trips')}>
+                  <Text style={[styles.segmentLabel, activeSegment === 'trips' && styles.activeLabel]}>Trips</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity><Ionicons name="search-outline" size={22} color="#000" /></TouchableOpacity>
             </View>
           )}
 
-          {/* Active Card (Foreground) - Draggable */}
-          <GestureDetector gesture={gesture}>
-            <Animated.View style={[styles.cardWrapper, cardStyle]}>
-              <SwipeCard profile={profiles[currentIndex]} />
-              
-              {/* Invisible touch area for profile view tap, 
-                  but we need to be careful not to block gesture. 
-                  Actually, tap on card usually opens profile. 
-                  We can handle Tap gesture vs Pan, but simpler for MVP: 
-                  info button opens profile. */}
-              
-              {/* Overlays */}
-              <Animated.View style={[styles.overlay, styles.likeOverlay, likeOpacityStyle]}>
-                <Text style={styles.overlayText}>LIKE</Text>
-              </Animated.View>
-              <Animated.View style={[styles.overlay, styles.nopeOverlay, nopeOpacityStyle]}>
-                <Text style={styles.overlayText}>NOPE</Text>
-              </Animated.View>
-
-            </Animated.View>
-          </GestureDetector>
-        </View>
-
-        {/* ===== ACTIONS ===== */}
-        <View style={styles.actionsContainer}>
-          <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={() => handleButtonSwipe('left')}>
-              <View style={[styles.actionButton, styles.pass]}>
-                <Ionicons name="close" size={36} color={Colors.highlight.error} />
+          {activeSegment === 'people' ? (
+            <View style={styles.mainArea}>
+              <View style={styles.cardContainer}>
+                {profiles.length > currentIndex ? (
+                  <GestureDetector gesture={composedGesture}>
+                    <Animated.View style={animatedStyle}>
+                      <SwipeCard profile={profiles[currentIndex]} isImmersive={isImmersive} />
+                    </Animated.View>
+                  </GestureDetector>
+                ) : (
+                  <Text style={styles.emptyText}>No more explorers found.</Text>
+                )}
               </View>
-            </TouchableOpacity>
 
-            <TouchableOpacity onPress={viewProfile}>
-              <View style={[styles.actionButton, styles.info]}>
-                <Ionicons name="information" size={30} color={Colors.neutral.white} />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => handleButtonSwipe('right')}>
-              <View style={[styles.actionButton, styles.like]}>
-                <Ionicons name="heart" size={36} color={Colors.neutral.white} />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
+              {!isImmersive && (
+                <View style={styles.actionRow}>
+                  <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}>
+                    <Ionicons name="close" size={32} color="#FFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.likeBtn} onPress={() => handleSwipe('right')}>
+                    <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.likeGradient}>
+                      <Ionicons name="heart" size={32} color="#FFF" />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.tripsContent}>
+              <Text style={styles.sectionTitle}>Curated Adventures</Text>
+              {/* Add Trip Tiers mapping here */}
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </View>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  logoLoader: {
-    width: 200,
-    height: 80,
-    marginBottom: 20,
-  },
-
-  /* HEADER */
-  header: {
-    height: 110,
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    zIndex: 10,
-  },
-
-  logo: {
-    width: 90,
-    height: 32,
-    tintColor: Colors.neutral.white,
-  },
-
-  headerText: {
-    alignItems: 'center',
-  },
-
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.neutral.white,
-  },
-
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-  },
-
-  counter: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-
-  counterText: {
-    color: Colors.neutral.white,
-    fontWeight: '700',
-  },
-
-  /* CARD AREA */
-  cardArea: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-
-  cardWrapper: {
-    position: 'absolute',
-    // shadow logic is inside SwipeCard, but we need layout alignment
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  nextCard: {
-    transform: [{ scale: 0.95 }, { translateY: 10 }],
-    opacity: 0.8,
-    zIndex: -1,
-  },
-
-  /* OVERLAYS */
-  overlay: {
-    position: 'absolute',
-    top: 40,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderWidth: 4,
-    borderRadius: 12,
-    zIndex: 100,
-  },
-  likeOverlay: {
-    left: 40,
-    borderColor: Colors.highlight.success,
-    transform: [{ rotate: '-30deg' }],
-  },
-  nopeOverlay: {
-    right: 40,
-    borderColor: Colors.highlight.error,
-    transform: [{ rotate: '30deg' }],
-  },
-  overlayText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-
-  /* ACTIONS */
-  actionsContainer: {
-    paddingBottom: 30,
-    zIndex: 10,
-  },
-
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 24,
-  },
-
-  actionButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
-  },
-
-  pass: { backgroundColor: Colors.neutral.white },
-  info: { backgroundColor: Colors.secondary.teal },
-  like: { backgroundColor: Colors.highlight.success },
-
-  loadingText: {
-    marginTop: 16,
-    color: Colors.neutral.white,
-  },
-
-  emptyTitle: {
-    fontSize: 28,
-    color: Colors.neutral.white,
-  },
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  blurPath: { position: 'absolute', width: 300, height: 300, borderRadius: 150, opacity: 0.4 },
+  blurCoral: { top: '15%', left: -80, backgroundColor: 'rgba(255, 122, 73, 0.08)' },
+  blurYellow: { top: -50, right: -50, backgroundColor: 'rgba(255, 243, 73, 0.08)' },
+  appBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, height: 50 },
+  headerLogo: { width: 32, height: 32 },
+  segmentedPicker: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 10, padding: 3, width: 160 },
+  segment: { flex: 1, height: 32, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
+  activeSegment: { backgroundColor: '#FFF' },
+  segmentLabel: { fontSize: 14, fontWeight: '500', color: '#000', opacity: 0.4 },
+  activeLabel: { opacity: 1, fontWeight: '700' },
+  mainArea: { flex: 1, justifyContent: 'space-between', paddingVertical: 10 },
+  cardContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  actionRow: { flexDirection: 'row', gap: 15, paddingHorizontal: 25, paddingBottom: 15 },
+  passBtn: { flex: 1, height: 60, backgroundColor: 'rgba(22, 22, 22, 0.15)', borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+  likeBtn: { flex: 1, height: 60, borderRadius: 30, overflow: 'hidden' },
+  likeGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { color: '#000', opacity: 0.3, fontSize: 16 },
+  tripsContent: { padding: 20 },
+  sectionTitle: { fontSize: 24, fontWeight: '700', marginBottom: 20 }
 });

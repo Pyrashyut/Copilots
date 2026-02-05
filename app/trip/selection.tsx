@@ -1,18 +1,24 @@
 // app/trip/selection.tsx
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
 const TIERS = [
-  { id: 'local', name: 'Local Explorer', price: '£50 - £150', tag: 'First Date Vibes', desc: 'Curated local experiences.', icon: 'cafe', color: ['#4FACFE', '#00F2FE'] },
-  { id: 'national', name: 'Weekend Escape', price: '£200 - £800', tag: 'Mini Adventure', desc: '2-3 day trips within country.', icon: 'car', color: ['#6BCF7F', '#38D98D'] },
-  { id: 'international', name: 'International', price: '£800 - £2,000', tag: 'Passport Required', desc: '4-7 days exploring new lands.', icon: 'airplane', color: ['#FA709A', '#FEE140'] },
-  { id: 'exotic', name: 'Exotic Adventure', price: '£2,000+', tag: 'Bucket List', desc: '7-14 days in paradise.', icon: 'sunny', color: ['#667EEA', '#764BA2'] }
+  { id: 'local', name: 'Local Explorer', price: '£50 - £150', desc: 'First Date, Elevated. 4-8 hours.', icon: 'cafe-outline' },
+  { id: 'national', name: 'Weekend Escape', price: '£200 - £800', desc: 'Weekend Wanderers. 2-3 days.', icon: 'car-outline' },
+  { id: 'international', name: 'International', price: '£800 - £2,000', desc: 'Passport Required. 4-7 days.', icon: 'airplane-outline' },
+  { id: 'exotic', name: 'Exotic Adventure', price: '£2,000+', desc: 'Once in a Lifetime. 7-14 days.', icon: 'sunny-outline' }
 ];
 
 export default function TripSelection() {
@@ -20,437 +26,292 @@ export default function TripSelection() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState<any>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-
-  useEffect(() => {
-    checkExistingBooking();
-  }, []);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const checkExistingBooking = async () => {
     try {
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      setCurrentUser(user);
+      setCurrentUserId(user.id);
 
-      const { data, error } = await supabase
+      // Query for bookings between these two users
+      // Use separate queries to avoid Supabase OR query issues
+      const { data: dataA, error: errorA } = await supabase
         .from('bookings')
         .select('*')
-        .or(`and(user_a.eq.${user.id},user_b.eq.${params.matchId}),and(user_a.eq.${params.matchId},user_b.eq.${user.id})`)
-        .order('created_at', { ascending: false });
+        .eq('user_a', user.id)
+        .eq('user_b', params.matchId)
+        .eq('status', 'pending');
 
-      if (error) throw error;
+      const { data: dataB, error: errorB } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_a', params.matchId)
+        .eq('user_b', user.id)
+        .eq('status', 'pending');
 
-      if (data && data.length > 0) {
-        if (data.length > 1) {
-          const toKeep = data[0];
-          const toDelete = data.slice(1).map(b => b.id);
-          await supabase.from('bookings').delete().in('id', toDelete);
-          setBooking(toKeep);
-        } else {
-          setBooking(data[0]);
+      if (errorA || errorB) {
+        console.error("Error fetching bookings:", errorA || errorB);
+        setBooking(null);
+        return;
+      }
+
+      // Combine results
+      const allBookings = [...(dataA || []), ...(dataB || [])];
+
+      if (allBookings.length > 0) {
+        // Sort by created_at to get the most recent
+        allBookings.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setBooking(allBookings[0]);
+        
+        // Clean up any duplicates
+        if (allBookings.length > 1) {
+          const oldIds = allBookings.slice(1).map(b => b.id);
+          await supabase.from('bookings').delete().in('id', oldIds);
         }
       } else {
         setBooking(null);
       }
     } catch (e) {
-      console.error("Fetch Error:", e);
+      console.error("Error checking booking:", e);
       setBooking(null);
     } finally {
       setLoading(false);
     }
   };
 
+  // Refresh booking state whenever screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      checkExistingBooking();
+    }, [params.matchId])
+  );
+
   const handleInvite = async (tierId: string) => {
-    if (booking) {
-      Alert.alert("Hold on", "You already have a pending invite. Cancel it first.");
-      return;
-    }
+    if (!currentUserId) return;
+    
+    setLoading(true);
+    try {
+      // Clear any existing bookings between these users first
+      // Use separate deletes to ensure both directions are cleared
+      await supabase
+        .from('bookings')
+        .delete()
+        .eq('user_a', currentUserId)
+        .eq('user_b', params.matchId);
 
-    Alert.alert("Send Invitation?", "This will send a trip proposal.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Send Invite", onPress: async () => {
-        setLoading(true);
-        
-        await supabase
-          .from('bookings')
-          .delete()
-          .or(`and(user_a.eq.${currentUser.id},user_b.eq.${params.matchId}),and(user_a.eq.${params.matchId},user_b.eq.${currentUser.id})`);
+      await supabase
+        .from('bookings')
+        .delete()
+        .eq('user_a', params.matchId)
+        .eq('user_b', currentUserId);
 
-        const { error } = await supabase.from('bookings').insert({
+      // Now create the new booking
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert({
           tier_id: tierId,
-          user_a: currentUser.id,
+          user_a: currentUserId,
           user_b: params.matchId,
-          invited_by: currentUser.id,
+          invited_by: currentUserId,
           status: 'pending'
-        });
+        })
+        .select()
+        .single();
 
-        if (error) {
-          Alert.alert("Error", error.message);
-        } else {
-          checkExistingBooking(); 
-        }
-        setLoading(false);
-      }}
-    ]);
+      if (error) throw error;
+      setBooking(data);
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Could not send invitation.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAccept = async () => {
-    setLoading(true);
-    const { error } = await supabase
-      .from('bookings')
-      .update({ 
-        status: 'active', 
-        chat_started_at: new Date().toISOString() 
-      })
-      .eq('id', booking.id);
+    if (!booking) return;
     
-    if (error) Alert.alert("Error", error.message);
-    else {
-      router.replace({ pathname: '/trip/chat', params: { bookingId: booking.id } });
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({ status: 'active', chat_started_at: new Date().toISOString() })
+        .eq('id', booking.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      router.replace({ pathname: '/trip/chat', params: { bookingId: data.id } });
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const handleCancelOrDecline = async (action: 'cancel' | 'decline') => {
-    const title = action === 'cancel' ? "Cancel Invitation?" : "Decline Invitation?";
-    const message = action === 'cancel' 
-      ? "This will remove the invitation." 
-      : "This will decline their offer. You can then propose a different trip.";
-
-    Alert.alert(title, message, [
-      { text: "Go Back", style: "cancel" },
-      { text: action === 'cancel' ? "Yes, Cancel" : "Decline", style: 'destructive', onPress: async () => {
-        setLoading(true);
-        setBooking(null);
-
-        const { error } = await supabase
-          .from('bookings')
-          .delete()
-          .eq('id', booking.id);
-
-        if (error) {
-          Alert.alert("Error", "Could not delete booking.");
-          checkExistingBooking();
-        } 
-        
-        setLoading(false);
-      }}
-    ]);
+  const handleDeclineOrCancel = async () => {
+    if (!booking) return;
+    
+    const bookingIdToDelete = booking.id; // Store this before any state changes
+    
+    Alert.alert(
+      "Confirm Action",
+      "This will remove the current proposal.",
+      [
+        { text: "Keep it", style: "cancel" },
+        { 
+          text: "Confirm", 
+          style: "destructive", 
+          onPress: async () => {
+            // Immediately clear the UI state FIRST (optimistic update)
+            setBooking(null);
+            setLoading(true);
+            
+            try {
+              // Then delete from database
+              const { error } = await supabase
+                .from('bookings')
+                .delete()
+                .eq('id', bookingIdToDelete);
+              
+              if (error) {
+                console.error("Delete error:", error);
+                Alert.alert("Error", "Could not remove proposal: " + error.message);
+                // If delete failed, we need to refetch to restore the state
+                await checkExistingBooking();
+              } else {
+                // Success - booking is already null from optimistic update
+                console.log("Successfully deleted booking:", bookingIdToDelete);
+              }
+            } catch (e: any) {
+              console.error("Exception during delete:", e);
+              Alert.alert("Error", e.message || "Could not remove proposal.");
+              // If delete failed, restore the state
+              await checkExistingBooking();
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
-  if (loading) {
-    return (
-      <LinearGradient 
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]} 
-        locations={[0, 0.5, 1]}
-        style={styles.center}
-      >
-        <Image 
-          source={require('../../assets/images/logo.png')}
-          style={styles.logoLoader}
-          resizeMode="contain"
-        />
-        <ActivityIndicator size="large" color={Colors.highlight.gold} />
-      </LinearGradient>
-    );
-  }
-
-  if (booking) {
-    const isMyInvite = booking.invited_by === currentUser.id;
-    const tier = TIERS.find(t => t.id === booking.tier_id);
-
-    return (
-      <LinearGradient 
-        colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
-        locations={[0, 0.3, 0.6, 1]}
-        style={styles.container}
-      >
-        {/* Decorative Background Elements */}
-        <View style={styles.bgDecoration1} />
-        <View style={styles.bgDecoration2} />
-        
-        <SafeAreaView style={styles.safeArea}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
-          </TouchableOpacity>
-          
-          <View style={styles.statusCard}>
-             <View style={styles.iconCircle}>
-               <Ionicons name={isMyInvite ? "paper-plane" : "gift"} size={48} color={Colors.primary.navy} />
-             </View>
-             <Text style={styles.statusTitle}>
-               {booking.status === 'active' ? 'Adventure Active!' : (isMyInvite ? 'Invitation Sent' : 'Invitation Received')}
-             </Text>
-             <Text style={styles.statusText}>
-               {booking.status === 'active' 
-                 ? "You can now chat in the active window." 
-                 : (isMyInvite ? `You invited ${params.name} to the ${tier?.name || 'Trip'}. Waiting for them to accept.` : `${params.name} wants to go on a ${tier?.name || 'Trip'} with you!`)}
-             </Text>
-
-             {booking.status === 'active' && (
-                <TouchableOpacity style={styles.actionButton} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: booking.id } })}>
-                  <LinearGradient
-                    colors={Colors.gradient.sunset}
-                    style={styles.buttonGradient}
-                  >
-                    <Ionicons name="chatbubbles" size={20} color={Colors.neutral.white} />
-                    <Text style={styles.btnText}>Open Chat</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-             )}
-
-             {booking.status === 'pending' && !isMyInvite && (
-               <View style={styles.btnColumn}>
-                  <TouchableOpacity style={styles.actionButton} onPress={handleAccept}>
-                    <LinearGradient
-                      colors={Colors.gradient.sunset}
-                      style={styles.buttonGradient}
-                    >
-                      <Ionicons name="checkmark-circle" size={20} color={Colors.neutral.white} />
-                      <Text style={styles.btnText}>Accept & Start Chat</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity style={styles.declineButton} onPress={() => handleCancelOrDecline('decline')}>
-                    <Text style={styles.declineText}>Decline & Propose Other</Text>
-                  </TouchableOpacity>
-               </View>
-             )}
-
-             {booking.status === 'pending' && isMyInvite && (
-                <TouchableOpacity style={styles.cancelButton} onPress={() => handleCancelOrDecline('cancel')}>
-                  <Text style={styles.cancelText}>Cancel Invitation</Text>
-                </TouchableOpacity>
-             )}
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
-    );
-  }
+  if (loading) return <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>;
 
   return (
-    <LinearGradient 
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]} 
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
-      {/* Decorative Background Elements */}
-      <View style={styles.bgDecoration1} />
-      <View style={styles.bgDecoration2} />
-      
-      <SafeAreaView style={{flex: 1}}>
-         <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={Colors.neutral.white}/>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Plan with {params.name}</Text>
-            <View style={{width: 40}} />
-         </View>
-         
-         <ScrollView contentContainerStyle={{padding: 20}}>
-          <Text style={styles.title}>Choose Adventure</Text>
-          <Text style={styles.subtitle}>Send an invite. If they accept, you have 24 hours to chat.</Text>
-          
-          <View style={{gap: 15, marginTop: 20}}>
-            {TIERS.map(tier => (
-              <TouchableOpacity key={tier.id} onPress={() => handleInvite(tier.id)}>
-                <LinearGradient colors={tier.color as any} style={styles.card}>
-                  <View style={styles.row}>
-                     <Text style={styles.tierName}>{tier.name}</Text>
-                     <Text style={styles.price}>{tier.price}</Text>
+    <View style={styles.container}>
+      <View style={[styles.blurPath, styles.blurCoral]} />
+      <View style={[styles.blurPath, styles.blurYellow]} />
+
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <Ionicons name="chevron-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Plan with {params.name}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {booking ? (
+            <View style={styles.statusCard}>
+              <View style={styles.iconCircle}>
+                <Ionicons 
+                  name={booking.status === 'active' ? "checkmark-circle" : "mail-unread-outline"} 
+                  size={48} 
+                  color="#E8755A" 
+                />
+              </View>
+              <Text style={styles.statusTitle}>
+                {booking.status === 'active' ? 'Trip Confirmed!' : (booking.invited_by === currentUserId ? 'Invitation Sent' : 'New Invitation!')}
+              </Text>
+              <Text style={styles.statusDesc}>
+                {booking.status === 'active' 
+                  ? "You can now start your 5-minute Vibe Check chat." 
+                  : (booking.invited_by === currentUserId 
+                    ? `Waiting for ${params.name} to accept your ${booking.tier_id} trip.` 
+                    : `${params.name} wants to go on a ${booking.tier_id} trip with you!`)}
+              </Text>
+
+              <View style={styles.actionColumn}>
+                {booking.status === 'pending' && booking.invited_by !== currentUserId && (
+                  <TouchableOpacity style={styles.primaryBtn} onPress={handleAccept}>
+                    <Text style={styles.primaryBtnText}>Accept & Start Chat</Text>
+                  </TouchableOpacity>
+                )}
+                {booking.status === 'active' && (
+                  <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: booking.id } })}>
+                    <Text style={styles.primaryBtnText}>Open Chat</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.secondaryBtn} onPress={handleDeclineOrCancel}>
+                  <Text style={styles.secondaryBtnText}>
+                    {booking.invited_by === currentUserId ? 'Cancel Invitation' : 'Decline & Propose Other'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>Choose Adventure</Text>
+              <Text style={styles.sectionSubtitle}>Send an invitation to {params.name}. If they accept, you have 24 hours to chat.</Text>
+
+              {TIERS.map((tier) => (
+                <TouchableOpacity key={tier.id} style={styles.tierCard} onPress={() => handleInvite(tier.id)}>
+                  <View style={styles.tierHeader}>
+                    <View style={styles.tierIconBox}>
+                      <Ionicons name={tier.icon as any} size={24} color="#E8755A" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tierName}>{tier.name}</Text>
+                      <Text style={styles.tierPrice}>{tier.price}</Text>
+                    </View>
                   </View>
-                  <Text style={styles.desc}>{tier.desc}</Text>
-                  <View style={styles.btn}>
-                    <Text style={styles.btnLabel}>Send Invite</Text>
-                    <Ionicons name="arrow-forward" size={16} color={Colors.primary.navy} />
+                  <Text style={styles.tierDesc}>{tier.desc}</Text>
+                  <View style={styles.inviteBtn}>
+                    <Text style={styles.inviteBtnText}>Send Invite</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#E8755A" />
                   </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
-          </View>
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
+          <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  
-  center: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  
-  logoLoader: {
-    width: 200,
-    height: 80,
-    marginBottom: 20,
-  },
-
-  // Background Decorations
-  bgDecoration1: {
-    position: 'absolute',
-    top: -100,
-    right: -100,
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
-  },
-  bgDecoration2: {
-    position: 'absolute',
-    bottom: 100,
-    left: -150,
-    width: 350,
-    height: 350,
-    borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
-  },
-  
-  safeArea: { flex: 1 },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    padding: 15, 
-    gap: 15 
-  },
-  headerTitle: { 
-    color: Colors.neutral.white, 
-    fontSize: 18, 
-    fontWeight: 'bold' 
-  },
-  backButton: { 
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  
-  statusCard: { 
-    margin: 20, 
-    backgroundColor: 'white', 
-    padding: 30, 
-    borderRadius: 20, 
-    alignItems: 'center', 
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8
-  },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: Colors.neutral.trailDust,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  statusTitle: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    color: Colors.primary.navy, 
-    marginBottom: 12
-  },
-  statusText: { 
-    textAlign: 'center', 
-    color: Colors.neutral.grey, 
-    marginBottom: 20, 
-    lineHeight: 22 
-  },
-  
-  btnColumn: { width: '100%', gap: 10, alignItems: 'center' },
-  actionButton: { 
-    width: '100%', 
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 15,
-    gap: 8,
-  },
-  btnText: { 
-    fontWeight: 'bold', 
-    color: Colors.neutral.white, 
-    fontSize: 16 
-  },
-  
-  cancelButton: { marginTop: 10, padding: 10 },
-  cancelText: { 
-    color: Colors.highlight.error, 
-    fontWeight: '600' 
-  },
-
-  declineButton: { padding: 10 },
-  declineText: { 
-    color: Colors.neutral.grey, 
-    fontWeight: '600' 
-  },
-
-  title: { 
-    fontSize: 28, 
-    fontWeight: 'bold', 
-    color: Colors.neutral.white 
-  },
-  subtitle: { 
-    fontSize: 15, 
-    color: 'rgba(255, 255, 255, 0.8)', 
-    marginTop: 5 
-  },
-  card: { 
-    padding: 20, 
-    borderRadius: 16,
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  row: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center' 
-  },
-  tierName: { 
-    color: 'white', 
-    fontSize: 20, 
-    fontWeight: 'bold' 
-  },
-  price: { 
-    color: 'white', 
-    fontWeight: 'bold' 
-  },
-  desc: { 
-    color: 'rgba(255,255,255,0.9)', 
-    marginTop: 10, 
-    marginBottom: 15 
-  },
-  btn: { 
-    backgroundColor: 'white', 
-    alignSelf: 'flex-start', 
-    paddingVertical: 8, 
-    paddingHorizontal: 16, 
-    borderRadius: 20, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 5 
-  },
-  btnLabel: { 
-    fontWeight: 'bold', 
-    color: Colors.primary.navy 
-  }
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  blurPath: { position: 'absolute', width: 300, height: 300, borderRadius: 150, opacity: 0.3 },
+  blurCoral: { top: '10%', left: -100, backgroundColor: 'rgba(232, 117, 90, 0.1)' },
+  blurYellow: { bottom: '10%', right: -100, backgroundColor: 'rgba(212, 175, 55, 0.08)' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, height: 60 },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
+  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { padding: 20 },
+  sectionTitle: { fontSize: 28, fontWeight: '700', color: '#161616', marginBottom: 8 },
+  sectionSubtitle: { fontSize: 16, color: '#161616', opacity: 0.5, marginBottom: 24, lineHeight: 22 },
+  tierCard: { backgroundColor: '#F2F2F2', borderRadius: 20, padding: 20, marginBottom: 16, gap: 12 },
+  tierHeader: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  tierIconBox: { width: 50, height: 50, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  tierName: { fontSize: 18, fontWeight: '700', color: '#161616' },
+  tierPrice: { fontSize: 14, color: '#E8755A', fontWeight: '600' },
+  tierDesc: { fontSize: 14, color: '#161616', opacity: 0.6, lineHeight: 20 },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  inviteBtnText: { color: '#E8755A', fontWeight: '700', fontSize: 14 },
+  statusCard: { backgroundColor: '#F9F9F9', borderRadius: 24, padding: 32, alignItems: 'center', marginTop: 40, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },
+  iconCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginBottom: 20, elevation: 2 },
+  statusTitle: { fontSize: 22, fontWeight: '700', color: '#161616', marginBottom: 10 },
+  statusDesc: { fontSize: 16, color: '#161616', opacity: 0.6, textAlign: 'center', lineHeight: 24, marginBottom: 30 },
+  actionColumn: { width: '100%', gap: 12, alignItems: 'center' },
+  primaryBtn: { width: '100%', backgroundColor: '#161616', paddingVertical: 18, borderRadius: 100, alignItems: 'center' },
+  primaryBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  secondaryBtn: { width: '100%', backgroundColor: 'transparent', paddingVertical: 12, alignItems: 'center' },
+  secondaryBtnText: { color: '#E03724', fontWeight: '600', fontSize: 14 }
 });
