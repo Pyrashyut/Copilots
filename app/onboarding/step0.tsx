@@ -24,8 +24,6 @@ import { supabase } from '../../lib/supabase';
 const MediaThumbnail = ({ uri, onRemove }: { uri: string; onRemove: () => void }) => {
   const isVideo = uri.match(/\.(mp4|mov|qt)$/i);
   
-  // Conditionally use player only if needed, but hooks must be unconditional.
-  // We pass null if it's not a video, which is valid for expo-video.
   const player = useVideoPlayer(isVideo ? uri : null, player => {
     player.muted = true;
     player.loop = false;
@@ -72,10 +70,12 @@ export default function OnboardingStep0() {
     }
     try {
       let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images', 'videos'], // UPDATED: New array format
-        allowsEditing: true,
+        mediaTypes: ['images', 'videos'],
+        allowsMultipleSelection: true, // ENABLED MULTI-SELECT
+        selectionLimit: 5 - mediaItems.length,
         quality: 0.5,
         videoMaxDuration: 15,
+        // Note: allowsEditing is removed because it is not supported with multiple selection
       });
 
       if (!result.canceled && result.assets) {

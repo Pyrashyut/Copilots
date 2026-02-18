@@ -26,7 +26,6 @@ export default function TripsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch Active AND Completed
       const { data: bookings } = await supabase
         .from('bookings')
         .select('*')
@@ -85,19 +84,38 @@ export default function TripsScreen() {
             </View>
           ) : (
             activeTrips.map((trip) => (
-              <TouchableOpacity key={trip.id} style={styles.tripCard} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: trip.id } })}>
+              <TouchableOpacity 
+                key={trip.id} 
+                style={styles.tripCard} 
+                onPress={() => router.push({ pathname: '/trip/itinerary', params: { bookingId: trip.id } })}
+              >
                 <View style={styles.cardTop}>
                   <View style={styles.tierBadge}><Text style={styles.tierText}>{trip.tier_id}</Text></View>
-                  <View style={styles.timerBadge}><Ionicons name="chatbubbles-outline" size={14} color="#E8755A" /><Text style={styles.timerText}>Chat Unlocked</Text></View>
+                  <View style={styles.timerBadge}>
+                    <Ionicons name="map-outline" size={14} color="#E8755A" />
+                    <Text style={styles.timerText}>View Itinerary</Text>
+                  </View>
                 </View>
                 <View style={styles.cardMain}>
                   <Image source={{ uri: trip.partner?.photos?.[0] || 'https://via.placeholder.com/100' }} style={styles.partnerAvatar} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.destination}>Trip with {trip.partner?.username}</Text>
-                    <Text style={styles.statusLine}>Confirmed • {new Date(trip.created_at).toLocaleDateString()}</Text>
+                    <Text style={styles.statusLine}>Tap to view details</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#CCC" />
                 </View>
+                
+                {/* Secondary Action: Chat */}
+                <TouchableOpacity 
+                    style={styles.chatLink} 
+                    onPress={(e) => {
+                        e.stopPropagation(); // Don't trigger the card press
+                        router.push({ pathname: '/trip/chat', params: { bookingId: trip.id } });
+                    }}
+                >
+                    <Ionicons name="chatbubbles-outline" size={16} color="#666" />
+                    <Text style={styles.chatLinkText}>Open Chat</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
             ))
           )}
@@ -147,6 +165,11 @@ const styles = StyleSheet.create({
   partnerAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F2F2' },
   destination: { fontSize: 17, fontWeight: '700', color: '#161616' },
   statusLine: { fontSize: 13, color: '#000', opacity: 0.4, marginTop: 2 },
+  
+  // New Chat Link Style
+  chatLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' },
+  chatLinkText: { fontSize: 13, fontWeight: '600', color: '#666' },
+
   emptyState: { paddingVertical: 40, alignItems: 'center', gap: 16, opacity: 0.6 },
   emptyIconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F9F9F9', justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: '#000', opacity: 0.5, fontSize: 14, textAlign: 'center' },
