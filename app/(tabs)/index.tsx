@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const [activeSegment, setActiveSegment] = useState<'people' | 'trips'>('people');
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [myProfile, setMyProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isImmersive, setIsImmersive] = useState(false);
@@ -24,33 +25,55 @@ export default function DiscoverScreen() {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
-  useEffect(() => { fetchProfiles(); }, []);
+  useEffect(() => { fetchInitialData(); }, []);
 
-  const fetchProfiles = async () => {
+  const fetchInitialData = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Fetch my profile to compare preferences
+    const { data: me } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    setMyProfile(me);
+
+    await fetchProfiles(user.id);
+  };
+
+  const fetchProfiles = async (myId: string) => {
     try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // 1. Calculate the date 30 days ago
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      // 1. Get IDs of people I have already swiped (like OR pass)
-      const { data: swipedData } = await supabase
+      // 2. Fetch swipes to exclude
+      // We exclude: 
+      // - Anyone I LIKED (is_like = true)
+      // - Anyone I PASSED (is_like = false) but ONLY if it happened in the last 30 days
+      const { data: swipesToExclude } = await supabase
         .from('swipes')
-        .select('likee_id')
-        .eq('liker_id', user.id);
-      
-      const swipedIds = swipedData?.map(s => s.likee_id) || [];
-      swipedIds.push(user.id); // Exclude self
+        .select('likee_id, is_like, created_at')
+        .eq('liker_id', myId);
 
-      // 2. Fetch profiles NOT in that list
+      const excludeIds = swipesToExclude
+        ?.filter(s => {
+            if (s.is_like) return true; // Keep likes hidden
+            const swipeDate = new Date(s.created_at);
+            return swipeDate > thirtyDaysAgo; // Keep recent passes hidden
+        })
+        .map(s => s.likee_id) || [];
+
+      excludeIds.push(myId); // Always exclude myself
+
+      // 3. Fetch potential matches
       const { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('is_visible', true)
-        .not('id', 'in', `(${swipedIds.join(',')})`)
+        .not('id', 'in', `(${excludeIds.join(',')})`)
         .limit(20);
 
       setProfiles(data || []);
-      setCurrentIndex(0); 
+      setCurrentIndex(0);
     } catch (e) {
       console.error(e);
     } finally { 
@@ -58,89 +81,74 @@ export default function DiscoverScreen() {
     }
   };
 
-  const viewProfile = () => {
-    if (profiles[currentIndex]) {
-      router.push({ pathname: '/profile/view', params: { userId: profiles[currentIndex].id } });
-    }
+  // --- COMPATIBILITY ENGINE ---
+  const getMatchData = (theirProfile: any) => {
+    if (!myProfile || !theirProfile) return { score: 50, common: [] };
+
+    const myLoves = myProfile.preferences?.loved || [];
+    const theirLoves = theirProfile.preferences?.loved || [];
+    
+    // Find common "Loved" items
+    const common = myLoves.filter((item: string) => theirLoves.includes(item));
+    
+    // Logic: Base 60% + 10% for every common interest (Max 99%)
+    let score = 60 + (common.length * 10);
+    if (score > 99) score = 99;
+
+    return { score, common };
   };
 
   const recordSwipe = async (direction: 'left' | 'right') => {
     const currentProfile = profiles[currentIndex];
     if (!currentProfile) return;
-
     const isLike = direction === 'right';
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // We use UPSERT so if they re-appear after 30 days and you swipe again, it updates the timestamp
         await supabase.from('swipes').upsert({
           liker_id: user.id,
           likee_id: currentProfile.id,
-          is_like: isLike
+          is_like: isLike,
+          created_at: new Date().toISOString()
         });
       }
-    } catch (error) {
-      console.error("Error recording swipe:", error);
-    }
-
-    // Move to next card locally
+    } catch (error) { console.error(error); }
     setCurrentIndex(prev => prev + 1);
-  };
-
-  const nextCard = (direction: 'left' | 'right') => {
-    translateX.value = 0;
-    translateY.value = 0;
-    recordSwipe(direction);
   };
 
   const handleSwipe = (direction: 'left' | 'right') => {
     const outX = direction === 'right' ? width * 1.5 : -width * 1.5;
     translateX.value = withTiming(outX, { duration: 300 }, () => {
-      runOnJS(nextCard)(direction);
+        translateX.value = 0;
+        translateY.value = 0;
+        runOnJS(recordSwipe)(direction);
     });
   };
 
   // Gestures
   const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      translateX.value = e.translationX;
-      translateY.value = e.translationY;
-    })
+    .onUpdate((e) => { translateX.value = e.translationX; translateY.value = e.translationY; })
     .onEnd((e) => {
       if (Math.abs(e.translationX) > SWIPE_THRESHOLD) {
         runOnJS(handleSwipe)(e.translationX > 0 ? 'right' : 'left');
       } else {
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
+        translateX.value = withSpring(0); translateY.value = withSpring(0);
       }
     });
 
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(500)
-    .onStart(() => { runOnJS(setIsImmersive)(true); })
-    .onFinalize(() => { runOnJS(setIsImmersive)(false); });
-
-  const tapGesture = Gesture.Tap()
-    .onEnd(() => { runOnJS(viewProfile)(); });
-
-  const composedGesture = Gesture.Exclusive(
-    panGesture, 
-    Gesture.Simultaneous(tapGesture, longPressGesture)
-  );
+  const tapGesture = Gesture.Tap().onEnd(() => {
+    if (profiles[currentIndex]) {
+        runOnJS(router.push)({ pathname: '/profile/view', params: { userId: profiles[currentIndex].id } } as any);
+    }
+  });
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { rotate: `${translateX.value / 20}deg` }
-    ]
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { rotate: `${translateX.value / 20}deg` }]
   }));
 
-  const hasMoreProfiles = profiles.length > currentIndex;
-
-  if (loading) return (
-    <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>
-  );
+  if (loading) return <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -160,20 +168,21 @@ export default function DiscoverScreen() {
                   <Text style={[styles.segmentLabel, activeSegment === 'trips' && styles.activeLabel]}>Trips</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={fetchProfiles}><Ionicons name="refresh-outline" size={22} color="#000" /></TouchableOpacity>
+              <TouchableOpacity onPress={() => fetchInitialData()}><Ionicons name="refresh-outline" size={22} color="#000" /></TouchableOpacity>
             </View>
           )}
 
           {activeSegment === 'people' ? (
             <View style={styles.mainArea}>
               <View style={styles.cardContainer}>
-                {hasMoreProfiles ? (
-                  <GestureDetector gesture={composedGesture}>
+                {profiles.length > currentIndex ? (
+                  <GestureDetector gesture={Gesture.Exclusive(panGesture, tapGesture)}>
                     <Animated.View style={animatedStyle}>
                       <SwipeCard 
                         profile={profiles[currentIndex]} 
                         isImmersive={isImmersive}
-                        isActive={true} // Triggers video autoplay
+                        isActive={true}
+                        matchData={getMatchData(profiles[currentIndex])} // PASS MATCH DATA
                       />
                     </Animated.View>
                   </GestureDetector>
@@ -181,32 +190,24 @@ export default function DiscoverScreen() {
                   <View style={styles.emptyContainer}>
                     <Ionicons name="sparkles-outline" size={60} color="#DDD" />
                     <Text style={styles.emptyText}>No more explorers found nearby.</Text>
-                    <TouchableOpacity style={styles.refreshBtn} onPress={fetchProfiles}>
+                    <TouchableOpacity style={styles.refreshBtn} onPress={() => fetchInitialData()}>
                       <Text style={styles.refreshBtnText}>Refresh Discovery</Text>
                     </TouchableOpacity>
                   </View>
                 )}
               </View>
 
-              {/* ACTION BUTTONS */}
-              {!isImmersive && hasMoreProfiles && (
+              {!isImmersive && profiles.length > currentIndex && (
                 <View style={styles.actionRow}>
-                  <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}>
-                    <Ionicons name="close" size={32} color="#FFF" />
-                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}><Ionicons name="close" size={32} color="#FFF" /></TouchableOpacity>
                   <TouchableOpacity style={styles.likeBtn} onPress={() => handleSwipe('right')}>
-                    <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.likeGradient}>
-                      <Ionicons name="heart" size={32} color="#FFF" />
-                    </LinearGradient>
+                    <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.likeGradient}><Ionicons name="heart" size={32} color="#FFF" /></LinearGradient>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
           ) : (
-            <ScrollView contentContainerStyle={styles.tripsContent}>
-              <Text style={styles.sectionTitle}>Curated Adventures</Text>
-              <Text style={styles.emptyText}>Trip packages coming soon...</Text>
-            </ScrollView>
+            <View style={{padding: 20}}><Text>Curated Trips Coming Soon</Text></View>
           )}
         </SafeAreaView>
       </View>
@@ -237,6 +238,4 @@ const styles = StyleSheet.create({
   passBtn: { flex: 1, height: 60, backgroundColor: 'rgba(22, 22, 22, 0.15)', borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
   likeBtn: { flex: 1, height: 60, borderRadius: 30, overflow: 'hidden' },
   likeGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  tripsContent: { padding: 20 },
-  sectionTitle: { fontSize: 24, fontWeight: '700', marginBottom: 20 }
 });
