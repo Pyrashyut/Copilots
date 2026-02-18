@@ -144,21 +144,18 @@ export default function TripSelection() {
 
   const handleAccept = async () => {
     if (!booking) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .update({ status: 'active', chat_started_at: new Date().toISOString() })
-        .eq('id', booking.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      // Navigate to Chat
-      router.replace({ pathname: '/trip/chat', params: { bookingId: data.id } });
-    } catch (e: any) { Alert.alert("Error", e.message); } 
-    finally { setLoading(false); }
+    
+    // Instead of updating immediately, go to Payment Screen
+    // We pass the bookingId and the Tier Name to display on the receipt
+    const tierName = TIERS.find(t => t.id === booking.tier_id)?.name || "Trip";
+    
+    router.push({ 
+        pathname: '/trip/payment', 
+        params: { 
+            bookingId: booking.id,
+            tierName: tierName 
+        } 
+    });
   };
 
   const handleDeclineOrCancel = async () => {
