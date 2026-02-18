@@ -2,11 +2,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -17,7 +17,35 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
-const { width } = Dimensions.get('window');
+// --- Helper for the Avatar ---
+const MediaAvatar = ({ uri }: { uri: string }) => {
+  const isVideo = uri?.match(/\.(mp4|mov|qt)$/i);
+  
+  const player = useVideoPlayer(isVideo ? uri : null, player => {
+    player.muted = true;
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <View style={styles.avatarContainer}>
+      {isVideo ? (
+        <VideoView
+          player={player}
+          style={styles.avatar}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      ) : (
+        <Image 
+          source={{ uri: uri || 'https://via.placeholder.com/150' }} 
+          style={styles.avatar} 
+        />
+      )}
+    </View>
+  );
+};
+// -----------------------------
 
 export default function ViewProfileScreen() {
   const params = useLocalSearchParams();
@@ -47,7 +75,6 @@ export default function ViewProfileScreen() {
   };
 
   const handleAction = (type: 'like' | 'pass') => {
-    // Note: You can add actual DB logic for liking here later
     Alert.alert(
       type === 'like' ? "Liked! ❤️" : "Passed", 
       `You ${type === 'like' ? 'liked' : 'passed on'} ${profile?.username || 'this user'}.`,
@@ -61,12 +88,10 @@ export default function ViewProfileScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Figma Blur Backgrounds */}
       <View style={[styles.blurPath, styles.blurCoral]} />
       <View style={[styles.blurPath, styles.blurYellow]} />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        {/* AppBar */}
         <View style={styles.appBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="chevron-back" size={24} color="#000" />
@@ -79,12 +104,8 @@ export default function ViewProfileScreen() {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
-          {/* Header Section */}
           <View style={styles.headerSection}>
-            <Image 
-              source={{ uri: profile?.photos?.[0] || 'https://via.placeholder.com/150' }} 
-              style={styles.avatar} 
-            />
+            <MediaAvatar uri={profile?.photos?.[0]} />
             <View style={styles.nameRow}>
               <Text style={styles.nameText}>{profile?.username || 'Explorer'}, {profile?.age || '24'}</Text>
               <Ionicons name="checkmark-circle" size={22} color="#FF9100" />
@@ -93,7 +114,7 @@ export default function ViewProfileScreen() {
             <Text style={styles.bioText}>{profile?.bio || "Adventurer at heart. Looking for someone to explore hidden gems with."}</Text>
           </View>
 
-          {/* Stats Bar (FIXED: Changed div to View) */}
+          {/* Stats Bar */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <View style={styles.statHeading}>
@@ -102,9 +123,7 @@ export default function ViewProfileScreen() {
               </View>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
-            
             <View style={styles.statDivider} />
-            
             <View style={styles.statBox}>
               <View style={styles.statHeading}>
                 <Ionicons name="airplane" size={16} color="#FF9100" />
@@ -112,9 +131,7 @@ export default function ViewProfileScreen() {
               </View>
               <Text style={styles.statLabel}>Trips</Text>
             </View>
-            
             <View style={styles.statDivider} />
-            
             <View style={styles.statBox}>
               <View style={styles.statHeading}>
                 <Ionicons name="heart" size={16} color="#FF9100" />
@@ -128,15 +145,22 @@ export default function ViewProfileScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Travel Gallery</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {profile?.photos?.map((photo: string, i: number) => (
-                <View key={i} style={styles.imageCard}>
-                  <Image source={{ uri: photo }} style={styles.imageThumb} resizeMode="cover" />
-                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.4)']} style={styles.imageOverlay} />
-                  <View style={styles.imageTag}>
-                    <Text style={styles.imageTagText}>{i + 1}</Text>
-                  </View>
-                </View>
-              ))}
+              {profile?.photos?.map((photo: string, i: number) => {
+                 const isVideo = photo.match(/\.(mp4|mov|qt)$/i);
+                 return (
+                    <View key={i} style={styles.imageCard}>
+                        {isVideo ? (
+                             <View style={{flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center'}}>
+                                <Ionicons name="videocam" size={30} color="#FFF" />
+                                <Text style={{color: 'white', fontSize: 10, marginTop: 4}}>Video</Text>
+                             </View>
+                        ) : (
+                            <Image source={{ uri: photo }} style={styles.imageThumb} resizeMode="cover" />
+                        )}
+                      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.4)']} style={styles.imageOverlay} />
+                    </View>
+                 );
+              })}
             </ScrollView>
           </View>
 
@@ -155,7 +179,7 @@ export default function ViewProfileScreen() {
                 </View>
               </View>
 
-              {/* Want to Try */}
+              {/* Try */}
               <View style={[styles.matrixCard, styles.matrixTry]}>
                 <View style={[styles.matrixIconBox, { backgroundColor: '#EEC72E' }]}>
                   <Ionicons name="list" size={14} color="#000" />
@@ -166,7 +190,7 @@ export default function ViewProfileScreen() {
                 </View>
               </View>
 
-              {/* Not For Me */}
+              {/* Dislike */}
               <View style={[styles.matrixCard, styles.matrixDislike]}>
                 <View style={[styles.matrixIconBox, { backgroundColor: '#E03724' }]}>
                   <Ionicons name="thumbs-down" size={14} color="#FFF" />
@@ -179,11 +203,10 @@ export default function ViewProfileScreen() {
             </View>
           </View>
 
-          {/* Bottom spacer for fixed buttons */}
           <View style={{ height: 120 }} />
         </ScrollView>
 
-        {/* Floating Action Buttons */}
+        {/* Footer Actions */}
         <View style={styles.footerActions}>
           <TouchableOpacity 
             style={styles.passBtn} 
@@ -229,7 +252,10 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 10 },
   headerSection: { alignItems: 'center', gap: 8, marginBottom: 24 },
-  avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#F2F2F2' },
+  
+  avatarContainer: { width: 100, height: 100, borderRadius: 50, overflow: 'hidden', backgroundColor: '#F2F2F2' },
+  avatar: { width: '100%', height: '100%' },
+
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   nameText: { fontSize: 26, fontWeight: '700', color: '#000' },
   locationText: { fontSize: 15, color: '#000', opacity: 0.6 },
@@ -256,9 +282,7 @@ const styles = StyleSheet.create({
   imageCard: { width: 150, height: 210, borderRadius: 20, marginRight: 12, overflow: 'hidden', backgroundColor: '#F2F2F2' },
   imageThumb: { ...StyleSheet.absoluteFillObject },
   imageOverlay: { ...StyleSheet.absoluteFillObject },
-  imageTag: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  imageTagText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
-
+  
   matrixRow: { gap: 12 },
   matrixCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },
   matrixLoved: { backgroundColor: 'rgba(59, 159, 22, 0.08)' },

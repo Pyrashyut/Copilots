@@ -2,6 +2,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,35 +20,73 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
+// --- Helper Component for Video/Image Thumbnails ---
+const MediaThumbnail = ({ uri, onRemove }: { uri: string; onRemove: () => void }) => {
+  const isVideo = uri.match(/\.(mp4|mov|qt)$/i);
+  
+  // Conditionally use player only if needed, but hooks must be unconditional.
+  // We pass null if it's not a video, which is valid for expo-video.
+  const player = useVideoPlayer(isVideo ? uri : null, player => {
+    player.muted = true;
+    player.loop = false;
+  });
+
+  return (
+    <View style={styles.imageWrapper}>
+      {isVideo ? (
+        <VideoView
+          player={player}
+          style={styles.thumb}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      ) : (
+        <Image source={{ uri }} style={styles.thumb} />
+      )}
+
+      {isVideo && (
+        <View style={styles.videoBadge}>
+          <Ionicons name="videocam" size={12} color="#FFF" />
+        </View>
+      )}
+
+      <TouchableOpacity style={styles.removeBtn} onPress={onRemove}>
+        <Ionicons name="close" size={14} color="#FFF" />
+      </TouchableOpacity>
+    </View>
+  );
+};
+// ---------------------------------------------------
+
 export default function OnboardingStep0() {
   const router = useRouter();
   const [username, setUsername] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [mediaItems, setMediaItems] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const pickImages = async () => {
-    if (images.length >= 5) {
-      Alert.alert('Limit Reached', 'You can upload up to 5 photos.');
+  const pickMedia = async () => {
+    if (mediaItems.length >= 5) {
+      Alert.alert('Limit Reached', 'You can upload up to 5 photos or videos.');
       return;
     }
     try {
       let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: false,
-        allowsMultipleSelection: true,
-        selectionLimit: 5 - images.length,
+        mediaTypes: ['images', 'videos'], // UPDATED: New array format
+        allowsEditing: true,
         quality: 0.5,
+        videoMaxDuration: 15,
       });
-      if (!result.canceled) {
-        uploadMultipleImages(result.assets);
+
+      if (!result.canceled && result.assets) {
+        uploadMultipleFiles(result.assets);
       }
     } catch (e) {
       Alert.alert("Error", "Could not open gallery");
     }
   };
 
-  const uploadMultipleImages = async (assets: ImagePicker.ImagePickerAsset[]) => {
+  const uploadMultipleFiles = async (assets: ImagePicker.ImagePickerAsset[]) => {
     setUploading(true);
     const newUrls: string[] = [];
     try {
@@ -56,13 +95,17 @@ export default function OnboardingStep0() {
 
       for (const asset of assets) {
         const fileExt = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+        const isVideo = ['mp4', 'mov', 'qt'].includes(fileExt);
+        const contentType = isVideo ? `video/${fileExt === 'mov' ? 'quicktime' : 'mp4'}` : 'image/jpeg';
+        
         const fileName = `${user.id}/${Date.now()}_${Math.random()}.${fileExt}`;
+        
         const response = await fetch(asset.uri);
         const arrayBuffer = await response.arrayBuffer();
 
         const { error: uploadError } = await supabase.storage
           .from('user_photos')
-          .upload(fileName, arrayBuffer, { contentType: 'image/jpeg' });
+          .upload(fileName, arrayBuffer, { contentType });
 
         if (uploadError) throw uploadError;
 
@@ -72,7 +115,7 @@ export default function OnboardingStep0() {
 
         newUrls.push(publicUrl);
       }
-      setImages(prev => [...prev, ...newUrls]);
+      setMediaItems(prev => [...prev, ...newUrls]);
     } catch (error: any) {
       Alert.alert('Upload Failed', error.message);
     } finally {
@@ -82,7 +125,7 @@ export default function OnboardingStep0() {
 
   const finishOnboarding = async () => {
     if (!username.trim()) return Alert.alert('Missing Info', 'Please add a username.');
-    if (images.length === 0) return Alert.alert('Missing Info', 'Please add at least 1 photo.');
+    if (mediaItems.length === 0) return Alert.alert('Missing Info', 'Please add at least 1 photo or video.');
 
     setSaving(true);
     try {
@@ -93,7 +136,7 @@ export default function OnboardingStep0() {
         .from('profiles')
         .update({
           username: username.trim(),
-          photos: images,
+          photos: mediaItems,
           onboarding_complete: true
         })
         .eq('id', user.id);
@@ -124,7 +167,7 @@ export default function OnboardingStep0() {
 
               <View style={styles.headingContainer}>
                 <Text style={styles.title}>Complete Your Profile</Text>
-                <Text style={styles.desc}>Add your details so others can get to know you.</Text>
+                <Text style={styles.desc}>Add photos or short videos to show your travel vibe.</Text>
               </View>
 
               <View style={styles.section}>
@@ -144,25 +187,21 @@ export default function OnboardingStep0() {
 
               <View style={styles.section}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.label}>Your Photos</Text>
-                  <Text style={styles.photoCount}>{images.length}/5</Text>
+                  <Text style={styles.label}>Your Gallery</Text>
+                  <Text style={styles.photoCount}>{mediaItems.length}/5</Text>
                 </View>
 
                 <View style={styles.photoGrid}>
-                  {images.map((img, index) => (
-                    <View key={index} style={styles.imageWrapper}>
-                      <Image source={{ uri: img }} style={styles.thumb} />
-                      <TouchableOpacity
-                        style={styles.removeBtn}
-                        onPress={() => setImages(images.filter((_, i) => i !== index))}
-                      >
-                        <Ionicons name="close" size={14} color="#FFF" />
-                      </TouchableOpacity>
-                    </View>
+                  {mediaItems.map((uri, index) => (
+                    <MediaThumbnail 
+                      key={index} 
+                      uri={uri} 
+                      onRemove={() => setMediaItems(mediaItems.filter((_, i) => i !== index))} 
+                    />
                   ))}
 
-                  {images.length < 5 && (
-                    <TouchableOpacity style={styles.addBtn} onPress={pickImages} disabled={uploading}>
+                  {mediaItems.length < 5 && (
+                    <TouchableOpacity style={styles.addBtn} onPress={pickMedia} disabled={uploading}>
                       {uploading ? <ActivityIndicator color="#161616" /> : <Ionicons name="add" size={32} color="#161616" />}
                     </TouchableOpacity>
                   )}
@@ -200,6 +239,7 @@ const styles = StyleSheet.create({
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   imageWrapper: { position: 'relative' },
   thumb: { width: 100, height: 130, borderRadius: 12, backgroundColor: '#F2F2F2' },
+  videoBadge: { position: 'absolute', bottom: 5, left: 5, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: 2 },
   removeBtn: { position: 'absolute', top: -5, right: -5, width: 24, height: 24, borderRadius: 12, backgroundColor: '#E03724', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
   addBtn: { width: 100, height: 130, borderRadius: 12, backgroundColor: '#F2F2F2', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', borderStyle: 'dashed' },
   primaryButton: { width: '100%', height: 55, backgroundColor: '#E8755A', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 20 },

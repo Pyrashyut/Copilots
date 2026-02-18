@@ -39,8 +39,7 @@ export default function DiscoverScreen() {
         .eq('liker_id', user.id);
       
       const swipedIds = swipedData?.map(s => s.likee_id) || [];
-      // Also exclude myself
-      swipedIds.push(user.id);
+      swipedIds.push(user.id); // Exclude self
 
       // 2. Fetch profiles NOT in that list
       const { data } = await supabase
@@ -51,7 +50,7 @@ export default function DiscoverScreen() {
         .limit(20);
 
       setProfiles(data || []);
-      setCurrentIndex(0); // Reset index on refresh
+      setCurrentIndex(0); 
     } catch (e) {
       console.error(e);
     } finally { 
@@ -65,7 +64,6 @@ export default function DiscoverScreen() {
     }
   };
 
-  // Logic to record the swipe in DB
   const recordSwipe = async (direction: 'left' | 'right') => {
     const currentProfile = profiles[currentIndex];
     if (!currentProfile) return;
@@ -172,7 +170,11 @@ export default function DiscoverScreen() {
                 {hasMoreProfiles ? (
                   <GestureDetector gesture={composedGesture}>
                     <Animated.View style={animatedStyle}>
-                      <SwipeCard profile={profiles[currentIndex]} isImmersive={isImmersive} />
+                      <SwipeCard 
+                        profile={profiles[currentIndex]} 
+                        isImmersive={isImmersive}
+                        isActive={true} // Triggers video autoplay
+                      />
                     </Animated.View>
                   </GestureDetector>
                 ) : (

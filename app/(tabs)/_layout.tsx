@@ -1,9 +1,51 @@
 // app/(tabs)/_layout.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { Image, Platform, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
+
+// --- HELPER: Tab Icon Component (Handles Video/Image) ---
+const ProfileTabIcon = ({ focused, color, uri }: { focused: boolean; color: string; uri: string | null }) => {
+  const isVideo = uri?.match(/\.(mp4|mov|qt)$/i);
+  
+  // Use hook safely; pass null if not video
+  const player = useVideoPlayer(isVideo ? uri : null, player => {
+    player.muted = true;
+    player.loop = true;
+    player.play();
+  });
+
+  return (
+    <View style={{
+      borderWidth: focused ? 2 : 0,
+      borderColor: '#E8755A',
+      borderRadius: 15,
+      padding: 2,
+      overflow: 'hidden'
+    }}>
+      {uri ? (
+        isVideo ? (
+            <VideoView 
+                player={player} 
+                style={{ width: 24, height: 24, borderRadius: 12 }} 
+                contentFit="cover" 
+                nativeControls={false}
+            />
+        ) : (
+            <Image 
+                source={{ uri }} 
+                style={{ width: 24, height: 24, borderRadius: 12 }} 
+            />
+        )
+      ) : (
+        <Ionicons name="person-circle" size={26} color={color} />
+      )}
+    </View>
+  );
+};
+// --------------------------------------------------------
 
 export default function TabLayout() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -41,23 +83,13 @@ export default function TabLayout() {
       <Tabs.Screen name="matches" options={{ title: 'Matches', tabBarIcon: ({ color }) => <Ionicons name="heart" size={26} color={color} /> }} />
       <Tabs.Screen name="trips" options={{ title: 'Trips', tabBarIcon: ({ color }) => <Ionicons name="airplane" size={26} color={color} /> }} />
       <Tabs.Screen name="inbox" options={{ title: 'Inbox', tabBarIcon: ({ color }) => <Ionicons name="chatbubble" size={26} color={color} /> }} />
+      
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ focused, color }) => (
-            <View style={{
-              borderWidth: focused ? 2 : 0,
-              borderColor: '#E8755A',
-              borderRadius: 15,
-              padding: 2
-            }}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={{ width: 24, height: 24, borderRadius: 12 }} />
-              ) : (
-                <Ionicons name="person-circle" size={26} color={color} />
-              )}
-            </View>
+            <ProfileTabIcon focused={focused} color={color} uri={avatarUrl} />
           ),
         }}
       />
