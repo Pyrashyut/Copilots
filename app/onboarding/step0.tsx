@@ -137,14 +137,15 @@ export default function OnboardingStep0() {
         .update({
           username: username.trim(),
           photos: mediaItems,
-          onboarding_complete: true
+          // Removed onboarding_complete: true here because the Matrix step is next
         })
         .eq('id', user.id);
 
       if (error) {
         Alert.alert('Error', error.message);
       } else {
-        router.replace('/(tabs)');
+        // NAVIGATE TO THE NEW MATRIX SCREEN
+        router.push('/onboarding/matrix'); 
       }
     } finally {
       setSaving(false);

@@ -66,19 +66,14 @@ const GalleryItem = ({ uri, index, onPress }: { uri: string; index: number; onPr
     );
 };
 
-// --- FIXED FULL SCREEN VIEWER ---
+// --- HELPER: Full Screen Viewer (FIXED HOOKS) ---
 const FullScreenViewer = ({ visible, uri, onClose }: { visible: boolean; uri: string | null; onClose: () => void }) => {
     const insets = useSafeAreaInsets();
-    
-    // 1. Unconditional hook check
     const isVideo = uri ? !!uri.match(/\.(mp4|mov|qt)$/i) : false;
-    
-    // 2. Unconditional hook call
     const player = useVideoPlayer(isVideo ? uri : null, player => {
         player.loop = true;
     });
 
-    // 3. Effect for control
     useEffect(() => {
         if (visible && isVideo) {
             player.play();
@@ -87,7 +82,6 @@ const FullScreenViewer = ({ visible, uri, onClose }: { visible: boolean; uri: st
         }
     }, [visible, isVideo, player]);
 
-    // 4. Return
     if (!visible || !uri) return null;
 
     return (
@@ -133,29 +127,57 @@ export default function ProfileScreen() {
 
   useFocusEffect(useCallback(() => { fetchProfileData(); }, []));
 
+  // --- LOGIC: Check if Experience Matrix is filled ---
+  const isMatrixEmpty = !profile?.preferences || 
+    ((profile.preferences.loved?.length || 0) === 0 && 
+     (profile.preferences.try?.length || 0) === 0 && 
+     (profile.preferences.dislike?.length || 0) === 0);
+
   if (loading) return <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>;
 
   return (
     <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        {/* AppBar */}
         <View style={styles.appBar}>
-          <TouchableOpacity onPress={() => router.push('/profile/edit' as any)}>
+          <TouchableOpacity onPress={() => router.push('/profile/edit')}>
             <Ionicons name="create-outline" size={24} color="#161616" />
           </TouchableOpacity>
           <Text style={styles.appBarTitle}>My Profile</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/settings' as any)}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/settings')}>
             <Ionicons name="settings-outline" size={24} color="#161616" />
           </TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
+          {/* MATRIX COMPLETION NUDGE */}
+          {isMatrixEmpty && (
+            <TouchableOpacity 
+                style={styles.nudgeCard} 
+                onPress={() => router.push('/profile/edit')}
+            >
+                <LinearGradient 
+                    colors={['#E8755A', '#CA573D']} 
+                    start={{x:0, y:0}} end={{x:1, y:0}} 
+                    style={styles.nudgeGradient}
+                >
+                    <View style={{flex: 1}}>
+                        <Text style={styles.nudgeTitle}>Find Better Matches</Text>
+                        <Text style={styles.nudgeDesc}>Complete your Experience Matrix to see compatibility scores.</Text>
+                    </View>
+                    <Ionicons name="arrow-forward-circle" size={32} color="#FFF" />
+                </LinearGradient>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.headerSection}>
             <TouchableOpacity onPress={() => setFullScreenMedia(profile?.photos?.[0])}>
                 <MediaAvatar uri={profile?.photos?.[0]} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/profile/edit' as any)}>
+            {/* DIRECT EDIT BUTTON */}
+            <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/profile/edit')}>
                 <Ionicons name="images-outline" size={14} color="#FFF" />
                 <Text style={styles.manageBtnText}>Manage Photos</Text>
             </TouchableOpacity>
@@ -168,6 +190,7 @@ export default function ProfileScreen() {
             <Text style={styles.bioText}>{profile?.bio || 'No bio yet.'}</Text>
           </View>
 
+          {/* Stats Detail Row */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <View style={styles.statHeading}><Ionicons name="star" size={16} color="#FF9100" /><Text style={styles.statValue}>{avgRating}</Text></View>
@@ -185,6 +208,7 @@ export default function ProfileScreen() {
             </View>
           </View>
 
+          {/* Travel Gallery */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Travel Gallery</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -202,21 +226,30 @@ export default function ProfileScreen() {
             </ScrollView>
           </View>
 
-          {/* Matrix code kept same */}
+          {/* Experience Matrix Display */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Experience Matrix</Text>
             <View style={styles.matrixRow}>
               <View style={[styles.matrixCard, styles.matrixLoved]}>
                 <View style={[styles.matrixIconBox, { backgroundColor: '#3B9F16' }]}><Ionicons name="thumbs-up" size={14} color="#FFF" /></View>
-                <View style={styles.matrixInfo}><Text style={styles.matrixLabel}>Done & Loved</Text><Text style={styles.matrixItems}>{profile?.preferences?.loved?.length > 0 ? profile.preferences.loved.join(' • ') : 'None yet'}</Text></View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Done & Loved</Text>
+                  <Text style={styles.matrixItems}>{profile?.preferences?.loved?.length > 0 ? profile.preferences.loved.join(' • ') : 'None yet'}</Text>
+                </View>
               </View>
               <View style={[styles.matrixCard, styles.matrixTry]}>
                 <View style={[styles.matrixIconBox, { backgroundColor: '#EEC72E' }]}><Ionicons name="list" size={14} color="#161616" /></View>
-                <View style={styles.matrixInfo}><Text style={styles.matrixLabel}>Want to Try</Text><Text style={styles.matrixItems}>{profile?.preferences?.try?.length > 0 ? profile.preferences.try.join(' • ') : 'None yet'}</Text></View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Want to Try</Text>
+                  <Text style={styles.matrixItems}>{profile?.preferences?.try?.length > 0 ? profile.preferences.try.join(' • ') : 'None yet'}</Text>
+                </View>
               </View>
               <View style={[styles.matrixCard, styles.matrixDislike]}>
                 <View style={[styles.matrixIconBox, { backgroundColor: '#E03724' }]}><Ionicons name="thumbs-down" size={14} color="#FFF" /></View>
-                <View style={styles.matrixInfo}><Text style={styles.matrixLabel}>Not For Me</Text><Text style={styles.matrixItems}>{profile?.preferences?.dislike?.length > 0 ? profile.preferences.dislike.join(' • ') : 'None yet'}</Text></View>
+                <View style={styles.matrixInfo}>
+                  <Text style={styles.matrixLabel}>Not For Me</Text>
+                  <Text style={styles.matrixItems}>{profile?.preferences?.dislike?.length > 0 ? profile.preferences.dislike.join(' • ') : 'None yet'}</Text>
+                </View>
               </View>
             </View>
           </View>
@@ -235,6 +268,13 @@ const styles = StyleSheet.create({
   appBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
   appBarTitle: { fontSize: 18, fontWeight: '700', color: '#161616' },
   scrollContent: { paddingHorizontal: 16 },
+
+  // Nudge Card Styles
+  nudgeCard: { marginHorizontal: 0, marginTop: 10, borderRadius: 16, overflow: 'hidden', elevation: 4 },
+  nudgeGradient: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
+  nudgeTitle: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+  nudgeDesc: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2, fontWeight: '500' },
+
   headerSection: { alignItems: 'center', gap: 8, marginBottom: 24, marginTop: 10 },
   avatarContainer: { width: 80, height: 80, borderRadius: 40, overflow: 'hidden', backgroundColor: '#F2F2F2' },
   avatar: { width: '100%', height: '100%' },
