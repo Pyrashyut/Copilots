@@ -82,21 +82,53 @@ export default function DiscoverScreen() {
   };
 
   // --- COMPATIBILITY ENGINE ---
-  const getMatchData = (theirProfile: any) => {
+  // Inside app/(tabs)/index.tsx
+
+const getMatchData = (theirProfile: any) => {
     if (!myProfile || !theirProfile) return { score: 50, common: [] };
 
+    let score = 50; // Starting base
+    let commonReasons: string[] = [];
+
+    // Layer 1: Experience Matrix (40% Weight)
     const myLoves = myProfile.preferences?.loved || [];
     const theirLoves = theirProfile.preferences?.loved || [];
+    const commonMatrix = myLoves.filter((item: string) => theirLoves.includes(item));
     
-    // Find common "Loved" items
-    const common = myLoves.filter((item: string) => theirLoves.includes(item));
-    
-    // Logic: Base 60% + 10% for every common interest (Max 99%)
-    let score = 60 + (common.length * 10);
-    if (score > 99) score = 99;
+    if (commonMatrix.length > 0) {
+      score += (commonMatrix.length * 12);
+      commonReasons.push(`You both love ${commonMatrix[0]}`);
+    }
 
-    return { score, common };
-  };
+    // Layer 2: Personality Tags (30% Weight)
+    const myTags = myProfile.personality_tags || [];
+    const theirTags = theirProfile.personality_tags || [];
+    const commonTags = myTags.filter((t: string) => theirTags.includes(t));
+
+    if (commonTags.length > 0) {
+      score += 15;
+      commonReasons.push(`Both identify as ${commonTags[0]}`);
+    }
+
+    // Layer 3: Spotify Genres (30% Weight)
+    const myGenres = myProfile.spotify_genres || [];
+    const theirGenres = theirProfile.spotify_genres || [];
+    const commonGenres = myGenres.filter((g: string) => theirGenres.includes(g));
+
+    if (commonGenres.length > 0) {
+      score += 10;
+      commonReasons.push(`Shared taste in ${commonGenres[0]} music`);
+    }
+
+    // Caps
+    if (score > 99) score = 99;
+    if (score < 40) score = 42; // Minimum floor for a match
+
+    return { 
+      score, 
+      common: commonReasons 
+    };
+};
 
   const recordSwipe = async (direction: 'left' | 'right') => {
     const currentProfile = profiles[currentIndex];
