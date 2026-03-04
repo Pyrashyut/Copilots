@@ -8,30 +8,25 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BirthdayPicker, BirthdayValue } from '../../components/BirthdayPicker';
+import { LocationPicker, LocationValue } from '../../components/LocationPicker';
 import { supabase } from '../../lib/supabase';
 
 const GENDERS = ['Man', 'Woman', 'Non-binary'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const ACCENT = '#E8755A';
 
-// ─── Media thumbnail ──────────────────────────────────────────────────────────
-
 const MediaThumbnail = ({ uri, onRemove }: { uri: string; onRemove: () => void }) => {
   const isVideo = /\.(mp4|mov|qt)$/i.test(uri);
-  const player = useVideoPlayer(isVideo ? uri : null, (p) => {
-    p.muted = true; p.loop = false;
-  });
+  const player = useVideoPlayer(isVideo ? uri : null, (p) => { p.muted = true; p.loop = false; });
   return (
     <View style={s.thumbWrap}>
       {isVideo
@@ -44,13 +39,12 @@ const MediaThumbnail = ({ uri, onRemove }: { uri: string; onRemove: () => void }
   );
 };
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
-
 export default function OnboardingStep0() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [gender, setGender] = useState('');
   const [birthday, setBirthday] = useState<BirthdayValue | null>(null);
+  const [locationValue, setLocationValue] = useState<LocationValue | null>(null);
   const [mediaItems, setMediaItems] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -84,6 +78,7 @@ export default function OnboardingStep0() {
     if (!birthday) return Alert.alert('Missing Info', 'Please select your birthday.');
     if (!birthday.valid) return Alert.alert('Age Restriction', 'You must be at least 18 to use this app.');
     if (!gender) return Alert.alert('Missing Info', 'Please select a gender.');
+    if (!locationValue) return Alert.alert('Missing Info', 'Please set your location preference.');
     if (mediaItems.length === 0) return Alert.alert('Missing Info', 'Add at least one photo or video.');
 
     setSaving(true);
@@ -92,7 +87,15 @@ export default function OnboardingStep0() {
       if (!user) return;
       const birthdayString = `${birthday.year}-${(MONTHS.indexOf(birthday.month) + 1).toString().padStart(2, '0')}-${birthday.day}`;
       const { error } = await supabase.from('profiles').update({
-        username: username.trim(), birthday: birthdayString, gender, age: birthday.age, photos: mediaItems,
+        username: username.trim(),
+        birthday: birthdayString,
+        gender,
+        age: birthday.age,
+        photos: mediaItems,
+        location: locationValue.display,
+        location_mode: locationValue.mode,
+        location_city: locationValue.city || null,
+        location_country: locationValue.country || null,
       }).eq('id', user.id);
       if (error) throw error;
       router.push('/onboarding/personality');
@@ -103,35 +106,33 @@ export default function OnboardingStep0() {
     }
   };
 
-  // Progress: 4 fields, count filled ones
+  // Progress: 5 fields now
   const progress = [
     !!username.trim(),
     !!birthday?.valid,
     !!gender,
+    !!locationValue,
     mediaItems.length > 0,
-  ].filter(Boolean).length / 4;
+  ].filter(Boolean).length / 5;
 
   return (
     <View style={s.container}>
       <SafeAreaView style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          {/* ── Top bar ── */}
-          <View style={s.topBar}>
-            <View style={s.progressTrack}>
-              <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
-            </View>
-            <Text style={s.stepLabel}>Step 1 of 4</Text>
+        {/* Progress Bar */}
+        <View style={s.topBar}>
+          <View style={s.progressTrack}>
+            <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
           </View>
+          <Text style={s.stepLabel}>Step 1 of 4</Text>
+        </View>
 
-          <ScrollView
-            contentContainerStyle={s.scroll}
-            keyboardShouldPersistTaps="handled"
-            // allow nested scroll columns to work
-            nestedScrollEnabled
-          >
+        <KeyboardAwareScrollView
+          contentContainerStyle={s.scroll}
+          keyboardShouldPersistTaps="handled"
+          enableOnAndroid
+          extraScrollHeight={24}
+          showsVerticalScrollIndicator={false}
+        >
             <Text style={s.title}>Basic Details</Text>
             <Text style={s.subtitle}>Let's set up your profile.</Text>
 
@@ -172,6 +173,16 @@ export default function OnboardingStep0() {
               </View>
             </View>
 
+            {/* Location — now uses 3-mode picker */}
+            <View style={s.field}>
+              <Text style={s.label}>Location</Text>
+              <LocationPicker
+                value={locationValue}
+                onChange={setLocationValue}
+                accentColor={ACCENT}
+              />
+            </View>
+
             {/* Media */}
             <View style={s.field}>
               <View style={s.labelRow}>
@@ -190,10 +201,7 @@ export default function OnboardingStep0() {
                   <TouchableOpacity style={s.addBtn} onPress={pickMedia} activeOpacity={0.7}>
                     {uploading
                       ? <ActivityIndicator color={ACCENT} />
-                      : <>
-                          <Ionicons name="add" size={26} color={ACCENT} />
-                          <Text style={s.addText}>Add</Text>
-                        </>}
+                      : <><Ionicons name="add" size={26} color={ACCENT} /><Text style={s.addText}>Add</Text></>}
                   </TouchableOpacity>
                 )}
               </View>
@@ -205,14 +213,11 @@ export default function OnboardingStep0() {
                 ? <ActivityIndicator color="#FFF" />
                 : <Text style={s.ctaText}>Continue →</Text>}
             </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FEFEFE' },
@@ -249,9 +254,6 @@ const s = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', gap: 4,
   },
   addText: { fontSize: 11, fontWeight: '700', color: ACCENT },
-  cta: {
-    backgroundColor: '#161616', padding: 18, borderRadius: 30,
-    alignItems: 'center', marginTop: 4,
-  },
+  cta: { backgroundColor: '#161616', padding: 18, borderRadius: 30, alignItems: 'center', marginTop: 4 },
   ctaText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
 });

@@ -1,4 +1,6 @@
 // app/trip/chat.tsx
+// Vibe Check: 5-minute timed chat window. Opens after both users pay deposit.
+// After 5 minutes, chat is locked and trip is finalised.
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,6 +21,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
+const VIBE_CHECK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
 export default function ChatScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
@@ -28,20 +32,23 @@ export default function ChatScreen() {
   const [newMessage, setNewMessage] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [partnerId, setPartnerId] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState('24h 00m');
+  const [partnerName, setPartnerName] = useState<string>('Explorer');
+  
+  // Timer state
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
+  const [chatNotStarted, setChatNotStarted] = useState(false);
   
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedScore, setSelectedScore] = useState(0);
   const [submittingRating, setSubmittingRating] = useState(false);
   
   const flatListRef = useRef<FlatList>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bookingId = params.bookingId as string;
 
   useEffect(() => {
     initChat();
-    const timerInterval = setInterval(updateTimer, 60000); 
-    updateTimer();
 
     const channel = supabase
       .channel(`chat:${bookingId}`)
@@ -53,10 +60,30 @@ export default function ChatScreen() {
       }).subscribe();
 
     return () => { 
-      supabase.removeChannel(channel); 
-      clearInterval(timerInterval);
+      supabase.removeChannel(channel);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  const startCountdown = (startedAt: string) => {
+    const tick = () => {
+      const startTime = new Date(startedAt).getTime();
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const remaining = VIBE_CHECK_DURATION_MS - elapsed;
+
+      if (remaining <= 0) {
+        setSecondsLeft(0);
+        setIsExpired(true);
+        if (timerRef.current) clearInterval(timerRef.current);
+      } else {
+        setSecondsLeft(Math.ceil(remaining / 1000));
+      }
+    };
+
+    tick(); // run immediately
+    timerRef.current = setInterval(tick, 1000);
+  };
 
   const initChat = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -64,13 +91,38 @@ export default function ChatScreen() {
     setUserId(user.id);
 
     const { data: booking } = await supabase
-        .from('bookings')
-        .select('user_a, user_b')
-        .eq('id', bookingId)
-        .single();
+      .from('bookings')
+      .select('user_a, user_b, chat_started_at, status')
+      .eq('id', bookingId)
+      .single();
     
     if (booking) {
-        setPartnerId(booking.user_a === user.id ? booking.user_b : booking.user_a);
+      const pId = booking.user_a === user.id ? booking.user_b : booking.user_a;
+      setPartnerId(pId);
+
+      // Fetch partner name
+      const { data: partnerProfile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', pId)
+        .single();
+      if (partnerProfile?.username) setPartnerName(partnerProfile.username);
+
+      if (!booking.chat_started_at) {
+        // Chat hasn't started yet — set it now (first person to open starts the clock)
+        const now = new Date().toISOString();
+        await supabase.from('bookings').update({ chat_started_at: now }).eq('id', bookingId);
+        startCountdown(now);
+      } else {
+        // Clock already running — check if still valid
+        const elapsed = Date.now() - new Date(booking.chat_started_at).getTime();
+        if (elapsed >= VIBE_CHECK_DURATION_MS) {
+          setIsExpired(true);
+          setSecondsLeft(0);
+        } else {
+          startCountdown(booking.chat_started_at);
+        }
+      }
     }
 
     const { data } = await supabase
@@ -80,41 +132,35 @@ export default function ChatScreen() {
       .order('created_at', { ascending: true });
     
     if (data) {
-        setMessages(data);
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 200);
+      setMessages(data);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 200);
     }
   };
 
-  const updateTimer = async () => {
-    const { data: booking } = await supabase.from('bookings').select('chat_started_at').eq('id', bookingId).single();
+  const formatTime = (secs: number): string => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
-    if (booking?.chat_started_at) {
-      const startTime = new Date(booking.chat_started_at).getTime();
-      const now = new Date().getTime();
-      const difference = (startTime + 24 * 60 * 60 * 1000) - now; 
-
-      if (difference <= 0) {
-        setTimeLeft('Expired');
-        setIsExpired(true);
-      } else {
-        const hours = Math.floor(difference / (1000 * 60 * 60));
-        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-        setTimeLeft(`${hours}h ${minutes}m`);
-      }
-    }
+  const getTimerColor = (): string => {
+    if (secondsLeft === null) return '#161616';
+    if (secondsLeft <= 30) return '#E03724';
+    if (secondsLeft <= 60) return '#EEC72E';
+    return '#161616';
   };
 
   const sendMessage = async () => {
-    if (isExpired) return Alert.alert("Time Expired", "The chat window has closed.");
+    if (isExpired) return Alert.alert("Vibe Check Ended", "The 5-minute window has closed. Complete your trip!");
     if (!newMessage.trim() || !userId) return;
     
     const text = newMessage;
     setNewMessage('');
     
     const { error } = await supabase.from('messages').insert({ 
-        booking_id: bookingId, 
-        sender_id: userId, 
-        content: text 
+      booking_id: bookingId, 
+      sender_id: userId, 
+      content: text 
     });
 
     if (error) Alert.alert("Error", "Message could not be sent");
@@ -126,7 +172,6 @@ export default function ChatScreen() {
 
     setSubmittingRating(true);
     try {
-      // 1. Insert the rating
       const { error: ratingError } = await supabase.from('ratings').insert({
         rater_id: userId,
         ratee_id: partnerId,
@@ -135,14 +180,13 @@ export default function ChatScreen() {
       });
       if (ratingError) throw ratingError;
 
-      // 2. IMPORTANT: Update booking status to 'completed'
       const { error: statusError } = await supabase
         .from('bookings')
         .update({ status: 'completed' })
         .eq('id', bookingId);
       if (statusError) throw statusError;
 
-      Alert.alert("Trip Finalized! ✅", "Your rating was submitted.");
+      Alert.alert("Trip Finalised! ✅", "Your rating was submitted. Enjoy your adventure!");
       setShowRatingModal(false);
       router.replace('/(tabs)/trips');
     } catch (e: any) {
@@ -152,24 +196,48 @@ export default function ChatScreen() {
     }
   };
 
+  const timerLabel = isExpired 
+    ? 'Time Up' 
+    : secondsLeft !== null 
+      ? formatTime(secondsLeft) 
+      : '5:00';
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="chevron-back" size={24} color="#000" />
           </TouchableOpacity>
           <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>Vibe Check</Text>
-            <View style={[styles.timerBadge, isExpired && { backgroundColor: '#E03724' }]}>
-                <Ionicons name="time" size={14} color="#FFF" />
-                <Text style={styles.timerText}>{timeLeft}</Text>
+            <Text style={styles.headerTitle}>Vibe Check with {partnerName}</Text>
+            <View style={[styles.timerBadge, { backgroundColor: getTimerColor() }, isExpired && { backgroundColor: '#E03724' }]}>
+              <Ionicons name="timer-outline" size={13} color="#FFF" />
+              <Text style={styles.timerText}>{timerLabel}</Text>
             </View>
           </View>
           <TouchableOpacity onPress={() => setShowRatingModal(true)} style={styles.finishBtn}>
-             <Text style={styles.finishBtnText}>End Trip</Text>
+            <Text style={styles.finishBtnText}>End Trip</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Expired Banner */}
+        {isExpired && (
+          <View style={styles.expiredBanner}>
+            <Ionicons name="lock-closed" size={16} color="#FFF" />
+            <Text style={styles.expiredText}>Vibe Check ended — time to meet in person! Rate your experience below.</Text>
+          </View>
+        )}
+
+        {/* Info banner when active */}
+        {!isExpired && secondsLeft !== null && secondsLeft > 0 && messages.length === 0 && (
+          <View style={styles.infoBanner}>
+            <Ionicons name="information-circle-outline" size={16} color="#E8755A" />
+            <Text style={styles.infoText}>You have 5 minutes to connect before your adventure begins.</Text>
+          </View>
+        )}
 
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
@@ -180,6 +248,12 @@ export default function ChatScreen() {
             data={messages}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listContent}
+            ListEmptyComponent={
+              <View style={styles.emptyChat}>
+                <Text style={styles.emptyChatEmoji}>👋</Text>
+                <Text style={styles.emptyChatText}>Say hello! You have 5 minutes.</Text>
+              </View>
+            }
             renderItem={({ item }) => {
               const isMe = item.sender_id === userId;
               return (
@@ -190,34 +264,55 @@ export default function ChatScreen() {
             }}
           />
 
-          <View style={[styles.inputWrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-             <View style={styles.inputContainer}>
-                <TextInput style={styles.input} placeholder="Type a message..." value={newMessage} onChangeText={setNewMessage} multiline />
+          {isExpired ? (
+            <View style={[styles.inputWrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+              <TouchableOpacity style={styles.rateNowBtn} onPress={() => setShowRatingModal(true)}>
+                <Ionicons name="star" size={18} color="#FFF" />
+                <Text style={styles.rateNowText}>Rate Your Experience & Finalise Trip</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={[styles.inputWrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+              <View style={styles.inputContainer}>
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Say something..." 
+                  value={newMessage} 
+                  onChangeText={setNewMessage} 
+                  multiline 
+                  editable={!isExpired}
+                />
                 <TouchableOpacity onPress={sendMessage} style={styles.sendBtn} disabled={!newMessage.trim() || isExpired}>
-                    <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.sendGradient}><Ionicons name="arrow-up" size={20} color="#FFF" /></LinearGradient>
+                  <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.sendGradient}>
+                    <Ionicons name="arrow-up" size={20} color="#FFF" />
+                  </LinearGradient>
                 </TouchableOpacity>
-             </View>
-          </View>
+              </View>
+            </View>
+          )}
         </KeyboardAvoidingView>
       </SafeAreaView>
 
+      {/* Rating Modal */}
       <Modal visible={showRatingModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Rate your partner</Text>
-                <Text style={styles.modalDesc}>How was your experience planning with this explorer?</Text>
-                <View style={styles.starsRow}>
-                    {[1, 2, 3, 4, 5].map((num) => (
-                        <TouchableOpacity key={num} onPress={() => setSelectedScore(num)}>
-                            <Ionicons name={selectedScore >= num ? "star" : "star-outline"} size={40} color={selectedScore >= num ? "#FF9100" : "#CCC"} />
-                        </TouchableOpacity>
-                    ))}
-                </View>
-                <TouchableOpacity style={styles.submitRatingBtn} onPress={submitRating} disabled={submittingRating}>
-                    {submittingRating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitRatingText}>Submit & Close Trip</Text>}
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Rate your experience</Text>
+            <Text style={styles.modalDesc}>How was your Vibe Check with {partnerName}?</Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((num) => (
+                <TouchableOpacity key={num} onPress={() => setSelectedScore(num)}>
+                  <Ionicons name={selectedScore >= num ? "star" : "star-outline"} size={40} color={selectedScore >= num ? "#FF9100" : "#CCC"} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowRatingModal(false)} style={styles.cancelRatingBtn}><Text style={styles.cancelRatingText}>Not yet</Text></TouchableOpacity>
+              ))}
             </View>
+            <TouchableOpacity style={styles.submitRatingBtn} onPress={submitRating} disabled={submittingRating}>
+              {submittingRating ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitRatingText}>Submit & Finalise Trip</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowRatingModal(false)} style={styles.cancelRatingBtn}>
+              <Text style={styles.cancelRatingText}>Not yet</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
@@ -227,14 +322,21 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FEFEFE' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
-  headerInfo: { alignItems: 'center', gap: 4 },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#161616' },
-  timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#161616', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  timerText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
+  headerInfo: { alignItems: 'center', gap: 6 },
+  headerTitle: { fontSize: 15, fontWeight: '700', color: '#161616' },
+  timerBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  timerText: { color: '#FFF', fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
   iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   finishBtn: { backgroundColor: 'rgba(232, 117, 90, 0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   finishBtnText: { color: '#E8755A', fontWeight: '700', fontSize: 13 },
-  listContent: { padding: 16, paddingBottom: 20 },
+  expiredBanner: { backgroundColor: '#E03724', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
+  expiredText: { color: '#FFF', fontSize: 13, fontWeight: '600', flex: 1, lineHeight: 18 },
+  infoBanner: { backgroundColor: 'rgba(232, 117, 90, 0.08)', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  infoText: { color: '#E8755A', fontSize: 13, fontWeight: '500', flex: 1 },
+  listContent: { padding: 16, paddingBottom: 20, flexGrow: 1 },
+  emptyChat: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60, gap: 10 },
+  emptyChatEmoji: { fontSize: 40 },
+  emptyChatText: { fontSize: 16, color: '#999', fontWeight: '500' },
   bubble: { maxWidth: '80%', padding: 14, borderRadius: 20, marginBottom: 12 },
   myBubble: { alignSelf: 'flex-end', backgroundColor: '#E8755A', borderBottomRightRadius: 4 },
   theirBubble: { alignSelf: 'flex-start', backgroundColor: '#F2F2F2', borderBottomLeftRadius: 4 },
@@ -246,6 +348,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, maxHeight: 100, paddingVertical: 8, fontSize: 15, color: '#161616' },
   sendBtn: { marginBottom: 2 },
   sendGradient: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  rateNowBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#161616', paddingVertical: 16, borderRadius: 24, marginBottom: 8 },
+  rateNowText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { width: '100%', backgroundColor: '#FFF', borderRadius: 24, padding: 30, alignItems: 'center' },
   modalTitle: { fontSize: 22, fontWeight: '700', color: '#161616', marginBottom: 10 },

@@ -1,4 +1,5 @@
 // app/(tabs)/index.tsx
+// Location-aware discovery: respects Fixed / Remote Country / Remote Anywhere modes
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -20,7 +21,6 @@ export default function DiscoverScreen() {
   const [myProfile, setMyProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isImmersive, setIsImmersive] = useState(false);
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -31,24 +31,16 @@ export default function DiscoverScreen() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    // Fetch my profile to compare preferences
     const { data: me } = await supabase.from('profiles').select('*').eq('id', user.id).single();
     setMyProfile(me);
-
-    await fetchProfiles(user.id);
+    await fetchProfiles(user.id, me);
   };
 
-  const fetchProfiles = async (myId: string) => {
+  const fetchProfiles = async (myId: string, me: any) => {
     try {
-      // 1. Calculate the date 30 days ago
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      // 2. Fetch swipes to exclude
-      // We exclude: 
-      // - Anyone I LIKED (is_like = true)
-      // - Anyone I PASSED (is_like = false) but ONLY if it happened in the last 30 days
       const { data: swipesToExclude } = await supabase
         .from('swipes')
         .select('likee_id, is_like, created_at')
@@ -56,89 +48,108 @@ export default function DiscoverScreen() {
 
       const excludeIds = swipesToExclude
         ?.filter(s => {
-            if (s.is_like) return true; // Keep likes hidden
-            const swipeDate = new Date(s.created_at);
-            return swipeDate > thirtyDaysAgo; // Keep recent passes hidden
+          if (s.is_like) return true;
+          return new Date(s.created_at) > thirtyDaysAgo;
         })
         .map(s => s.likee_id) || [];
 
-      excludeIds.push(myId); // Always exclude myself
+      excludeIds.push(myId);
 
-      // 3. Fetch potential matches
-      const { data } = await supabase
+      // Base query — always get visible profiles, exclude already-swiped
+      let query = supabase
         .from('profiles')
         .select('*')
         .eq('is_visible', true)
-        .not('id', 'in', `(${excludeIds.join(',')})`)
-        .limit(20);
+        .not('id', 'in', `(${excludeIds.join(',')})`);
 
+      // ── LOCATION FILTERING ──────────────────────────────────────
+      // remote_anywhere: no filter — see everyone
+      // remote_country: show profiles in same country OR remote_anywhere users
+      // fixed: show profiles in same country OR remote_anywhere users
+      //        (we filter same-city at UI level since city is free text)
+      
+      const myMode = me?.location_mode || 'fixed';
+      const myCountry = me?.location_country;
+
+      if (myMode === 'remote_anywhere') {
+        // See everyone — no location filter needed
+      } else if (myMode === 'remote_country' || myMode === 'fixed') {
+        if (myCountry) {
+          // See: same country users + anyone who is remote_anywhere
+          query = query.or(`location_country.eq.${myCountry},location_mode.eq.remote_anywhere`);
+        }
+        // If no country set on my profile, fall back to showing all (degrade gracefully)
+      }
+      // ─────────────────────────────────────────────────────────────
+
+      const { data } = await query.limit(20);
       setProfiles(data || []);
       setCurrentIndex(0);
     } catch (e) {
       console.error(e);
-    } finally { 
-      setLoading(false); 
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- COMPATIBILITY ENGINE ---
-  // Inside app/(tabs)/index.tsx
-
-const getMatchData = (theirProfile: any) => {
+  // ── COMPATIBILITY ENGINE ─────────────────────────────────────────
+  const getMatchData = (theirProfile: any) => {
     if (!myProfile || !theirProfile) return { score: 50, common: [] };
 
-    let score = 50; // Starting base
+    let score = 50;
     let commonReasons: string[] = [];
 
-    // Layer 1: Experience Matrix (40% Weight)
+    // Layer 1: Experience Matrix (40% weight)
     const myLoves = myProfile.preferences?.loved || [];
     const theirLoves = theirProfile.preferences?.loved || [];
     const commonMatrix = myLoves.filter((item: string) => theirLoves.includes(item));
-    
     if (commonMatrix.length > 0) {
-      score += (commonMatrix.length * 12);
+      score += Math.min(commonMatrix.length * 12, 36);
       commonReasons.push(`You both love ${commonMatrix[0]}`);
     }
 
-    // Layer 2: Personality Tags (30% Weight)
+    // Layer 2: Personality Tags (30% weight)
     const myTags = myProfile.personality_tags || [];
     const theirTags = theirProfile.personality_tags || [];
     const commonTags = myTags.filter((t: string) => theirTags.includes(t));
-
     if (commonTags.length > 0) {
       score += 15;
       commonReasons.push(`Both identify as ${commonTags[0]}`);
     }
 
-    // Layer 3: Spotify Genres (30% Weight)
+    // Layer 3: Spotify Genres (30% weight)
     const myGenres = myProfile.spotify_genres || [];
     const theirGenres = theirProfile.spotify_genres || [];
     const commonGenres = myGenres.filter((g: string) => theirGenres.includes(g));
-
     if (commonGenres.length > 0) {
       score += 10;
       commonReasons.push(`Shared taste in ${commonGenres[0]} music`);
     }
 
-    // Caps
-    if (score > 99) score = 99;
-    if (score < 40) score = 42; // Minimum floor for a match
+    // Layer 4: Location mode bonus
+    if (myProfile.location_mode === 'remote_anywhere' && theirProfile.location_mode === 'remote_anywhere') {
+      score += 5;
+      commonReasons.push('Both location-independent');
+    } else if (myProfile.location_city && theirProfile.location_city &&
+               myProfile.location_city.toLowerCase() === theirProfile.location_city.toLowerCase()) {
+      score += 8;
+      commonReasons.push(`Both based in ${myProfile.location_city}`);
+    }
 
-    return { 
-      score, 
-      common: commonReasons 
-    };
-};
+    if (score > 99) score = 99;
+    if (score < 42) score = 42;
+
+    return { score, common: commonReasons };
+  };
+  // ─────────────────────────────────────────────────────────────────
 
   const recordSwipe = async (direction: 'left' | 'right') => {
     const currentProfile = profiles[currentIndex];
     if (!currentProfile) return;
     const isLike = direction === 'right';
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // We use UPSERT so if they re-appear after 30 days and you swipe again, it updates the timestamp
         await supabase.from('swipes').upsert({
           liker_id: user.id,
           likee_id: currentProfile.id,
@@ -153,13 +164,12 @@ const getMatchData = (theirProfile: any) => {
   const handleSwipe = (direction: 'left' | 'right') => {
     const outX = direction === 'right' ? width * 1.5 : -width * 1.5;
     translateX.value = withTiming(outX, { duration: 300 }, () => {
-        translateX.value = 0;
-        translateY.value = 0;
-        runOnJS(recordSwipe)(direction);
+      translateX.value = 0;
+      translateY.value = 0;
+      runOnJS(recordSwipe)(direction);
     });
   };
 
-  // Gestures
   const panGesture = Gesture.Pan()
     .onUpdate((e) => { translateX.value = e.translationX; translateY.value = e.translationY; })
     .onEnd((e) => {
@@ -172,13 +182,24 @@ const getMatchData = (theirProfile: any) => {
 
   const tapGesture = Gesture.Tap().onEnd(() => {
     if (profiles[currentIndex]) {
-        runOnJS(router.push)({ pathname: '/profile/view', params: { userId: profiles[currentIndex].id } } as any);
+      runOnJS(router.push)({ pathname: '/profile/view', params: { userId: profiles[currentIndex].id } } as any);
     }
   });
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { rotate: `${translateX.value / 20}deg` }]
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { rotate: `${translateX.value / 20}deg` }
+    ]
   }));
+
+  // Location mode label for the header
+  const locationLabel = myProfile?.location_mode === 'remote_anywhere'
+    ? '🌍 Global'
+    : myProfile?.location_country
+    ? `📍 ${myProfile.location_mode === 'remote_country' ? myProfile.location_country : (myProfile.location_city || myProfile.location_country)}`
+    : null;
 
   if (loading) return <View style={styles.center}><ActivityIndicator color="#E8755A" /></View>;
 
@@ -189,19 +210,36 @@ const getMatchData = (theirProfile: any) => {
         <View style={[styles.blurPath, styles.blurYellow]} />
 
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-          {!isImmersive && (
-            <View style={styles.appBar}>
-              <Image source={require('../../assets/images/logo.png')} style={styles.headerLogo} />
-              <View style={styles.segmentedPicker}>
-                <TouchableOpacity style={[styles.segment, activeSegment === 'people' && styles.activeSegment]} onPress={() => setActiveSegment('people')}>
-                  <Text style={[styles.segmentLabel, activeSegment === 'people' && styles.activeLabel]}>People</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.segment, activeSegment === 'trips' && styles.activeSegment]} onPress={() => setActiveSegment('trips')}>
-                  <Text style={[styles.segmentLabel, activeSegment === 'trips' && styles.activeLabel]}>Trips</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity onPress={() => fetchInitialData()}><Ionicons name="refresh-outline" size={22} color="#000" /></TouchableOpacity>
+          <View style={styles.appBar}>
+            <Image source={require('../../assets/images/logo.png')} style={styles.headerLogo} />
+            <View style={styles.segmentedPicker}>
+              <TouchableOpacity
+                style={[styles.segment, activeSegment === 'people' && styles.activeSegment]}
+                onPress={() => setActiveSegment('people')}
+              >
+                <Text style={[styles.segmentLabel, activeSegment === 'people' && styles.activeLabel]}>People</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.segment, activeSegment === 'trips' && styles.activeSegment]}
+                onPress={() => setActiveSegment('trips')}
+              >
+                <Text style={[styles.segmentLabel, activeSegment === 'trips' && styles.activeLabel]}>Trips</Text>
+              </TouchableOpacity>
             </View>
+            <TouchableOpacity onPress={() => fetchInitialData()}>
+              <Ionicons name="refresh-outline" size={22} color="#000" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Location mode indicator */}
+          {locationLabel && (
+            <TouchableOpacity
+              style={styles.locationBadge}
+              onPress={() => router.push('/profile/edit')}
+            >
+              <Text style={styles.locationBadgeText}>{locationLabel}</Text>
+              <Ionicons name="chevron-down" size={11} color="#999" />
+            </TouchableOpacity>
           )}
 
           {activeSegment === 'people' ? (
@@ -210,18 +248,21 @@ const getMatchData = (theirProfile: any) => {
                 {profiles.length > currentIndex ? (
                   <GestureDetector gesture={Gesture.Exclusive(panGesture, tapGesture)}>
                     <Animated.View style={animatedStyle}>
-                      <SwipeCard 
-                        profile={profiles[currentIndex]} 
-                        isImmersive={isImmersive}
+                      <SwipeCard
+                        profile={profiles[currentIndex]}
+                        isImmersive={false}
                         isActive={true}
-                        matchData={getMatchData(profiles[currentIndex])} // PASS MATCH DATA
+                        matchData={getMatchData(profiles[currentIndex])}
                       />
                     </Animated.View>
                   </GestureDetector>
                 ) : (
                   <View style={styles.emptyContainer}>
                     <Ionicons name="sparkles-outline" size={60} color="#DDD" />
-                    <Text style={styles.emptyText}>No more explorers found nearby.</Text>
+                    <Text style={styles.emptyText}>No more explorers found.</Text>
+                    {myProfile?.location_mode === 'fixed' && (
+                      <Text style={styles.emptyHint}>Try switching to Remote mode to see more people.</Text>
+                    )}
                     <TouchableOpacity style={styles.refreshBtn} onPress={() => fetchInitialData()}>
                       <Text style={styles.refreshBtnText}>Refresh Discovery</Text>
                     </TouchableOpacity>
@@ -229,17 +270,24 @@ const getMatchData = (theirProfile: any) => {
                 )}
               </View>
 
-              {!isImmersive && profiles.length > currentIndex && (
+              {profiles.length > currentIndex && (
                 <View style={styles.actionRow}>
-                  <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}><Ionicons name="close" size={32} color="#FFF" /></TouchableOpacity>
+                  <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}>
+                    <Ionicons name="close" size={32} color="#FFF" />
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.likeBtn} onPress={() => handleSwipe('right')}>
-                    <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.likeGradient}><Ionicons name="heart" size={32} color="#FFF" /></LinearGradient>
+                    <LinearGradient colors={['#E8755A', '#CA573D']} style={styles.likeGradient}>
+                      <Ionicons name="heart" size={32} color="#FFF" />
+                    </LinearGradient>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
           ) : (
-            <View style={{padding: 20}}><Text>Curated Trips Coming Soon</Text></View>
+            <View style={styles.comingSoon}>
+              <Ionicons name="map-outline" size={48} color="#DDD" />
+              <Text style={styles.comingSoonText}>Curated Trips Coming Soon</Text>
+            </View>
           )}
         </SafeAreaView>
       </View>
@@ -260,14 +308,23 @@ const styles = StyleSheet.create({
   activeSegment: { backgroundColor: '#FFF' },
   segmentLabel: { fontSize: 14, fontWeight: '500', color: '#000', opacity: 0.4 },
   activeLabel: { opacity: 1, fontWeight: '700' },
+  locationBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 5,
+    backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 20, marginBottom: 6,
+  },
+  locationBadgeText: { fontSize: 12, fontWeight: '600', color: '#666' },
   mainArea: { flex: 1, justifyContent: 'space-between', paddingVertical: 10 },
   cardContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyContainer: { alignItems: 'center', gap: 16 },
+  emptyContainer: { alignItems: 'center', gap: 12 },
   emptyText: { color: '#000', opacity: 0.3, fontSize: 16, textAlign: 'center', paddingHorizontal: 40 },
+  emptyHint: { color: '#E8755A', fontSize: 13, textAlign: 'center', paddingHorizontal: 40, opacity: 0.8 },
   refreshBtn: { backgroundColor: '#161616', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 100, marginTop: 10 },
   refreshBtnText: { color: '#FFF', fontWeight: '700' },
   actionRow: { flexDirection: 'row', gap: 15, paddingHorizontal: 25, paddingBottom: 15 },
   passBtn: { flex: 1, height: 60, backgroundColor: 'rgba(22, 22, 22, 0.15)', borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
   likeBtn: { flex: 1, height: 60, borderRadius: 30, overflow: 'hidden' },
   likeGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  comingSoon: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  comingSoonText: { color: '#999', fontSize: 15 },
 });

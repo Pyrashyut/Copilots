@@ -24,43 +24,36 @@ const TIERS = [
   { id: 'exotic', name: 'Exotic Adventure', price: '£2,000+', duration: '7-14 Days', desc: 'Once in a lifetime bucket-list destinations.', icon: 'sunny-outline', color: '#E03724' }
 ];
 
-// --- COMPONENT: Plan Detail Card (Defined outside to prevent re-renders) ---
 const PlanDetailCard = ({ tierId }: { tierId: string }) => {
-  // Robust check for ID match (case insensitive)
   const tier = TIERS.find(t => t.id.toLowerCase() === (tierId || '').toLowerCase());
   
   if (!tier) return (
-      <View style={styles.errorCard}>
-          <Ionicons name="alert-circle" size={24} color="#D32F2F" />
-          <Text style={styles.errorText}>Plan details unavailable ({tierId || 'Unknown'})</Text>
-      </View>
+    <View style={styles.errorCard}>
+      <Ionicons name="alert-circle" size={24} color="#D32F2F" />
+      <Text style={styles.errorText}>Plan details unavailable ({tierId || 'Unknown'})</Text>
+    </View>
   );
 
   return (
     <View style={styles.ticketContainer}>
-      {/* Top Section */}
       <View style={[styles.ticketHeader, { backgroundColor: tier.color }]}>
-          <View style={styles.ticketIcon}>
-              <Ionicons name={tier.icon as any} size={24} color={tier.color} />
-          </View>
-          <View style={{ flex: 1 }}>
-              <Text style={styles.ticketTitle}>{tier.name}</Text>
-              <Text style={styles.ticketSubtitle}>{tier.duration}</Text>
-          </View>
-          <Ionicons name="receipt-outline" size={24} color="rgba(255,255,255,0.8)" />
+        <View style={styles.ticketIcon}>
+          <Ionicons name={tier.icon as any} size={24} color={tier.color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.ticketTitle}>{tier.name}</Text>
+          <Text style={styles.ticketSubtitle}>{tier.duration}</Text>
+        </View>
+        <Ionicons name="receipt-outline" size={24} color="rgba(255,255,255,0.8)" />
       </View>
-
-      {/* Content Section */}
       <View style={styles.ticketBody}>
-          <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Estimated Cost</Text>
-              <Text style={[styles.priceValue, { color: tier.color }]}>{tier.price}</Text>
-          </View>
-          <View style={styles.divider} />
-          <Text style={styles.ticketDesc}>{tier.desc}</Text>
+        <View style={styles.priceRow}>
+          <Text style={styles.priceLabel}>Estimated Cost</Text>
+          <Text style={[styles.priceValue, { color: tier.color }]}>{tier.price}</Text>
+        </View>
+        <View style={styles.divider} />
+        <Text style={styles.ticketDesc}>{tier.desc}</Text>
       </View>
-
-      {/* Decorative Circles */}
       <View style={styles.ticketCircleLeft} />
       <View style={styles.ticketCircleRight} />
     </View>
@@ -81,7 +74,6 @@ export default function TripSelection() {
       if (!user) return;
       setCurrentUserId(user.id);
 
-      // Check for any existing booking between these two users
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
@@ -90,10 +82,10 @@ export default function TripSelection() {
 
       if (error) { setBooking(null); return; }
 
-      // Get the most relevant booking (filter out cancelled unless it's all we have)
       if (data && data.length > 0) {
+        // Prefer active/pending bookings; skip cancelled ones
         const active = data.find(b => b.status !== 'cancelled');
-        setBooking(active || data[0]);
+        setBooking(active || null);
       } else {
         setBooking(null);
       }
@@ -109,7 +101,6 @@ export default function TripSelection() {
   const handleInvite = async (tierId: string) => {
     if (!currentUserId) return;
     
-    // Don't allow new invite if active trip exists
     if (booking && (booking.status === 'active' || booking.status === 'completed')) {
       Alert.alert("Active Trip", "You already have a trip with this user.");
       return;
@@ -117,21 +108,27 @@ export default function TripSelection() {
 
     setLoading(true);
     try {
-      // 1. Delete old pending/cancelled invites to clean up
+      // Clean up any cancelled bookings first
       await supabase
         .from('bookings')
         .delete()
         .or(`and(user_a.eq.${currentUserId},user_b.eq.${params.matchId}),and(user_a.eq.${params.matchId},user_b.eq.${currentUserId})`)
-        .in('status', ['pending', 'cancelled']);
+        .eq('status', 'cancelled');
 
-      // 2. Create new booking
+      // Also clean up stale pending invites
+      await supabase
+        .from('bookings')
+        .delete()
+        .or(`and(user_a.eq.${currentUserId},user_b.eq.${params.matchId}),and(user_a.eq.${params.matchId},user_b.eq.${currentUserId})`)
+        .eq('status', 'pending');
+
       const { data, error } = await supabase.from('bookings').insert({
-          tier_id: tierId,
-          user_a: currentUserId,
-          user_b: params.matchId,
-          invited_by: currentUserId,
-          status: 'pending'
-        }).select().single();
+        tier_id: tierId,
+        user_a: currentUserId,
+        user_b: params.matchId,
+        invited_by: currentUserId,
+        status: 'pending'
+      }).select().single();
 
       if (error) throw error;
       setBooking(data);
@@ -144,35 +141,41 @@ export default function TripSelection() {
 
   const handleAccept = async () => {
     if (!booking) return;
-    
-    // Instead of updating immediately, go to Payment Screen
-    // We pass the bookingId and the Tier Name to display on the receipt
     const tierName = TIERS.find(t => t.id === booking.tier_id)?.name || "Trip";
-    
     router.push({ 
-        pathname: '/trip/payment', 
-        params: { 
-            bookingId: booking.id,
-            tierName: tierName 
-        } 
+      pathname: '/trip/payment', 
+      params: { bookingId: booking.id, tierName } 
     });
   };
 
   const handleDeclineOrCancel = async () => {
     if (!booking) return;
+    const isMyInvite = booking.invited_by === currentUserId;
+    
     Alert.alert(
-      booking.invited_by === currentUserId ? "Cancel Invite?" : "Decline Invite?", 
+      isMyInvite ? "Cancel Invite?" : "Decline Invite?", 
       "This will remove the trip proposal.", 
       [
         { text: "No, Keep it", style: "cancel" },
-        { text: "Yes, Remove", style: "destructive", onPress: async () => {
+        { 
+          text: "Yes, Remove", 
+          style: "destructive", 
+          onPress: async () => {
             setLoading(true);
-            try { 
-                await supabase.from('bookings').delete().eq('id', booking.id); 
-                setBooking(null);
-            } 
-            catch (e: any) { Alert.alert("Error", "Could not cancel."); } 
-            finally { setLoading(false); }
+            try {
+              // DELETE the row instead of updating status to avoid constraint issues
+              const { error } = await supabase
+                .from('bookings')
+                .delete()
+                .eq('id', booking.id);
+              
+              if (error) throw error;
+              setBooking(null);
+            } catch (e: any) { 
+              Alert.alert("Error", "Could not cancel. Please try again.");
+            } finally { 
+              setLoading(false); 
+            }
           }
         }
       ]
@@ -200,63 +203,58 @@ export default function TripSelection() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {booking ? (
             <View style={styles.statusWrapper}>
-              
-              {/* STATUS HEADER */}
               <View style={styles.statusHeader}>
                 <Ionicons 
-                    name={booking.status === 'active' ? "checkmark-circle" : (booking.status === 'completed' ? "flag" : "mail-unread")} 
-                    size={32} 
-                    color={booking.status === 'completed' ? "#3B9F16" : "#E8755A"} 
+                  name={
+                    booking.status === 'active' ? "checkmark-circle" : 
+                    booking.status === 'completed' ? "flag" : 
+                    "mail-unread"
+                  } 
+                  size={32} 
+                  color={booking.status === 'completed' ? "#3B9F16" : "#E8755A"} 
                 />
                 <Text style={styles.statusTitle}>
-                    {booking.status === 'active' ? 'Trip Confirmed' : 
-                     booking.status === 'completed' ? 'Trip Completed' :
-                     (booking.invited_by === currentUserId ? 'Invitation Sent' : 'New Invitation')}
+                  {booking.status === 'active' ? 'Trip Confirmed' : 
+                   booking.status === 'completed' ? 'Trip Completed' :
+                   (booking.invited_by === currentUserId ? 'Invitation Sent' : 'New Invitation')}
                 </Text>
               </View>
 
               <Text style={styles.statusDesc}>
                 {booking.status === 'active' 
-                  ? "You can now start your 5-minute Vibe Check chat." 
+                  ? "You can now start your Vibe Check chat." 
                   : (booking.invited_by === currentUserId 
                     ? `Waiting for ${params.name} to accept.` 
                     : `${params.name} invited you to:`)}
               </Text>
 
-              {/* TICKET CARD - ALWAYS VISIBLE */}
               <PlanDetailCard tierId={booking.tier_id} />
 
-              {/* ACTIONS */}
               <View style={styles.actionColumn}>
-                
-                {/* Accept Button (Receiver Only) */}
                 {booking.status === 'pending' && booking.invited_by !== currentUserId && (
                   <TouchableOpacity style={styles.primaryBtn} onPress={handleAccept}>
                     <Text style={styles.primaryBtnText}>Accept & Pay Deposit</Text>
                   </TouchableOpacity>
                 )}
                 
-                {/* Chat Button (Active Only) */}
                 {booking.status === 'active' && (
                   <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push({ pathname: '/trip/chat', params: { bookingId: booking.id } })}>
-                    <Text style={styles.primaryBtnText}>Open Chat & Itinerary</Text>
+                    <Text style={styles.primaryBtnText}>Open Vibe Check Chat</Text>
                   </TouchableOpacity>
                 )}
 
-                {/* Completed Action */}
                 {booking.status === 'completed' && (
-                   <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push('/(tabs)/trips')}>
-                     <Text style={[styles.secondaryBtnText, { color: '#161616' }]}>View in Past Trips</Text>
-                   </TouchableOpacity>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push('/(tabs)/trips')}>
+                    <Text style={[styles.secondaryBtnText, { color: '#161616' }]}>View in Past Trips</Text>
+                  </TouchableOpacity>
                 )}
 
-                {/* Decline/Cancel (Pending or Active) */}
                 {(booking.status === 'pending' || booking.status === 'active') && (
-                    <TouchableOpacity style={styles.secondaryBtn} onPress={handleDeclineOrCancel}>
+                  <TouchableOpacity style={styles.secondaryBtn} onPress={handleDeclineOrCancel}>
                     <Text style={styles.secondaryBtnText}>
-                        {booking.invited_by === currentUserId ? 'Cancel Invitation' : 'Decline'}
+                      {booking.invited_by === currentUserId ? 'Cancel Invitation' : 'Decline'}
                     </Text>
-                    </TouchableOpacity>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
@@ -301,13 +299,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, height: 60 },
   headerTitle: { fontSize: 17, fontWeight: '700' },
   iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  
   scrollContent: { padding: 20 },
-  
   sectionTitle: { fontSize: 28, fontWeight: '700', color: '#161616', marginBottom: 8 },
   sectionSubtitle: { fontSize: 16, color: '#161616', opacity: 0.5, marginBottom: 24 },
-  
-  // Selection Cards
   tierCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, marginBottom: 16, gap: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
   tierHeader: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   tierIconBox: { width: 50, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
@@ -316,14 +310,10 @@ const styles = StyleSheet.create({
   tierDesc: { fontSize: 14, color: '#161616', opacity: 0.6, lineHeight: 20 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   inviteBtnText: { fontWeight: '700', fontSize: 14 },
-
-  // Status Wrapper
   statusWrapper: { width: '100%', alignItems: 'center' },
   statusHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
   statusTitle: { fontSize: 22, fontWeight: '700', color: '#161616' },
   statusDesc: { fontSize: 16, color: '#161616', opacity: 0.6, textAlign: 'center', lineHeight: 24, marginBottom: 30 },
-
-  // TICKET STYLING
   ticketContainer: { width: '100%', backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden', marginBottom: 30, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, shadowOffset: { width: 0, height: 5 }, elevation: 5 },
   ticketHeader: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 15 },
   ticketIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
@@ -335,13 +325,10 @@ const styles = StyleSheet.create({
   priceValue: { fontSize: 22, fontWeight: '800' },
   divider: { height: 1, backgroundColor: '#F1F1F1', marginBottom: 15, borderStyle: 'dashed', borderWidth: 1, borderColor: '#DDD', borderRadius: 1 },
   ticketDesc: { fontSize: 15, color: '#444', lineHeight: 22, textAlign: 'center' },
-  
   ticketCircleLeft: { position: 'absolute', top: 70, left: -10, width: 20, height: 20, borderRadius: 10, backgroundColor: '#FEFEFE' },
   ticketCircleRight: { position: 'absolute', top: 70, right: -10, width: 20, height: 20, borderRadius: 10, backgroundColor: '#FEFEFE' },
-
   errorCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 20, backgroundColor: '#FFF0F0', borderRadius: 12, marginBottom: 20, width: '100%' },
   errorText: { color: '#D32F2F', fontWeight: '600' },
-
   actionColumn: { width: '100%', gap: 12, alignItems: 'center' },
   primaryBtn: { width: '100%', backgroundColor: '#161616', paddingVertical: 18, borderRadius: 100, alignItems: 'center' },
   primaryBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
