@@ -1,139 +1,423 @@
 // app/(tabs)/inbox.tsx
+// Fix: bookings.user_a/user_b FK points to auth.users not profiles,
+// so we fetch profiles in a second query instead of using select join hints.
+
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  FlatList,
+  ActivityIndicator,
+  Image,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
+
+type NotifType = 'new_match' | 'trip_invite' | 'trip_accepted' | 'trip_cancelled' | 'chat_active';
+
+interface Notif {
+  id: string;
+  type: NotifType;
+  title: string;
+  body: string;
+  avatarUrl?: string;
+  createdAt: string;
+  read: boolean;
+  action?: () => void;
+}
+
+const TYPE_ICON: Record<NotifType, { name: string; bg: string }> = {
+  new_match:      { name: 'heart',              bg: Colors.highlight.error },
+  trip_invite:    { name: 'paper-plane',         bg: Colors.secondary.teal },
+  trip_accepted:  { name: 'checkmark-circle',    bg: Colors.highlight.success },
+  trip_cancelled: { name: 'close-circle',        bg: Colors.neutral.grey },
+  chat_active:    { name: 'chatbubble-ellipses', bg: Colors.primary.navyLight },
+};
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins < 1)   return 'Just now';
+  if (mins < 60)  return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+}
 
 export default function InboxScreen() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const userIdRef = useRef<string | null>(null);
 
-  const fetchRealNotifications = async () => {
+  const buildNotifs = (
+    matches: any[],
+    bookings: any[],
+    profileMap: Record<string, any>,
+    userId: string,
+  ): Notif[] => {
+    const list: Notif[] = [];
+
+    // New matches
+    matches.forEach(m => {
+      list.push({
+        id: `match_${m.match_id}`,
+        type: 'new_match',
+        title: 'New match!',
+        body: `You and ${m.username} liked each other.`,
+        avatarUrl: m.photos?.[0],
+        createdAt: m.matched_at,
+        read: false,
+        action: () =>
+          router.push({
+            pathname: '/trip/selection',
+            params: { matchId: m.match_id, name: m.username },
+          }),
+      });
+    });
+
+    // Booking-based notifications
+    bookings.forEach(b => {
+      const isUserA   = b.user_a === userId;
+      const otherId   = isUserA ? b.user_b : b.user_a;
+      const other     = profileMap[otherId];
+      const isInviter = b.invited_by === userId;
+      const name      = other?.username ?? 'Someone';
+      const avatar    = other?.photos?.[0];
+
+      if (b.status === 'pending' && !isInviter) {
+        list.push({
+          id: `invite_${b.id}`,
+          type: 'trip_invite',
+          title: 'Trip invitation',
+          body: `${name} invited you on a trip.`,
+          avatarUrl: avatar,
+          createdAt: b.created_at,
+          read: false,
+          action: () =>
+            router.push({
+              pathname: '/trip/selection',
+              params: { matchId: otherId, name },
+            }),
+        });
+      }
+
+      if (b.status === 'active' && isInviter) {
+        list.push({
+          id: `accepted_${b.id}`,
+          type: 'trip_accepted',
+          title: 'Invitation accepted!',
+          body: `${name} accepted your trip. Chat is now open.`,
+          avatarUrl: avatar,
+          createdAt: b.chat_started_at ?? b.created_at,
+          read: false,
+          action: () =>
+            router.push({ pathname: '/trip/chat', params: { bookingId: b.id } }),
+        });
+      }
+
+      if (b.status === 'active' && !isInviter) {
+        list.push({
+          id: `chat_${b.id}`,
+          type: 'chat_active',
+          title: 'Chat is open',
+          body: `Your chat with ${name} is active. Don't let the timer run out!`,
+          avatarUrl: avatar,
+          createdAt: b.chat_started_at ?? b.created_at,
+          read: false,
+          action: () =>
+            router.push({ pathname: '/trip/chat', params: { bookingId: b.id } }),
+        });
+      }
+
+      if (b.status === 'cancelled') {
+        list.push({
+          id: `cancelled_${b.id}`,
+          type: 'trip_cancelled',
+          title: 'Trip cancelled',
+          body: `The trip with ${name} was cancelled.`,
+          avatarUrl: avatar,
+          createdAt: b.created_at,
+          read: true,
+        });
+      }
+    });
+
+    list.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    return list;
+  };
+
+  const fetchData = async () => {
     try {
-      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      userIdRef.current = user.id;
 
-      const results: any[] = [];
+      // 1. Fetch matches and raw bookings in parallel
+      const [matchRes, bookingRes] = await Promise.all([
+        supabase.from('matches_view').select('*').eq('user_id', user.id),
+        supabase
+          .from('bookings')
+          .select('*')
+          .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
+          .order('created_at', { ascending: false }),
+      ]);
 
-      // Fetch all bookings to determine who we've already finished trips with
-      const { data: allBookings } = await supabase
-        .from('bookings')
-        .select('*, user_a_profile:profiles!bookings_user_a_fkey(username), user_b_profile:profiles!bookings_user_b_fkey(username)')
-        .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
-        .order('created_at', { ascending: false });
-      
-      const completedPartnerIds = new Set();
-      allBookings?.forEach(b => {
-        if (b.status === 'completed' || b.status === 'cancelled') {
-           const partner = b.user_a === user.id ? b.user_b : b.user_a;
-           completedPartnerIds.add(partner);
-        }
-      });
+      const bookings = bookingRes.data ?? [];
 
-      // 1. Fetch Mutual Matches
-      const { data: matches } = await supabase.from('matches_view').select('*').eq('user_id', user.id).order('matched_at', { ascending: false }).limit(10);
-      
-      if (matches) {
-        matches.forEach(m => {
-          // SKIP if we have ever completed/cancelled a trip with this match
-          if (completedPartnerIds.has(m.match_id)) return;
+      // 2. Collect all other-user IDs from bookings
+      const otherIds = bookings.map(b =>
+        b.user_a === user.id ? b.user_b : b.user_a
+      );
+      const uniqueIds = [...new Set(otherIds)];
 
-          results.push({ 
-            id: `match-${m.match_id}`, 
-            type: 'match', 
-            title: 'New Match! ❤️', 
-            body: `You and ${m.username} liked each other.`, 
-            time: new Date(m.matched_at).toLocaleDateString(), 
-            icon: 'heart', 
-            color: '#E8755A', 
-            data: { matchId: m.match_id, name: m.username } 
-          });
-        });
+      // 3. Fetch those profiles
+      let profileMap: Record<string, any> = {};
+      if (uniqueIds.length > 0) {
+        const { data: profileRows } = await supabase
+          .from('profiles')
+          .select('id, username, photos')
+          .in('id', uniqueIds);
+        (profileRows ?? []).forEach(p => { profileMap[p.id] = p; });
       }
 
-      // 2. Fetch Trip Proposals (Only Pending/Active)
-      if (allBookings) {
-        allBookings.forEach(b => {
-          if (b.status === 'completed' || b.status === 'cancelled') return;
-
-          const isInviter = b.invited_by === user.id;
-          const partnerName = b.user_a === user.id ? b.user_b_profile?.username : b.user_a_profile?.username;
-          
-          if (b.status === 'pending') {
-            results.push({ 
-              id: `booking-${b.id}`, 
-              type: 'proposal', 
-              title: isInviter ? 'Proposal Sent ✈️' : 'New Trip Proposal! 🎁', 
-              body: isInviter ? `Waiting for ${partnerName} to accept.` : `${partnerName} invited you on a trip.`, 
-              time: 'Recent', 
-              icon: 'paper-plane', 
-              color: '#D4AF37', 
-              data: { matchId: isInviter ? (b.user_a === user.id ? b.user_b : b.user_a) : b.invited_by, name: partnerName } 
-            });
-          }
-        });
-      }
-      setNotifications(results);
-    } catch (error) {
-      console.error("Inbox Fetch Error:", error);
+      const built = buildNotifs(
+        matchRes.data ?? [],
+        bookings,
+        profileMap,
+        user.id,
+      );
+      setNotifs(built);
+    } catch (e) {
+      console.error('Inbox fetch error:', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  useFocusEffect(useCallback(() => { fetchRealNotifications(); }, []));
+  useFocusEffect(useCallback(() => { fetchData(); }, []));
+
+  // Real-time: re-fetch on booking or swipe changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('inbox_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, fetchData)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'swipes' }, fetchData)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const markRead = (id: string) =>
+    setReadIds(prev => new Set([...prev, id]));
+
+  const unreadCount = notifs.filter(n => !n.read && !readIds.has(n.id)).length;
+
+  if (loading) {
+    return (
+      <LinearGradient
+        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
+        style={styles.center}
+      >
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.logoLoader}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color={Colors.highlight.gold} />
+      </LinearGradient>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <View style={styles.header}><Text style={styles.headerTitle}>Inbox</Text><Text style={styles.headerSubtitle}>Updates & Activity</Text></View>
-        <FlatList
-          data={notifications}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchRealNotifications} tintColor="#E8755A" />}
-          ListEmptyComponent={
-             <View style={{ paddingTop: 50, alignItems: 'center' }}>
-               <Text style={{ color: '#aaa' }}>No new notifications</Text>
-             </View>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.notifItem} onPress={() => router.push({ pathname: '/trip/selection', params: item.data })}>
-              <View style={[styles.iconBox, { backgroundColor: item.color + '15' }]}><Ionicons name={item.icon as any} size={22} color={item.color} /></View>
-              <View style={styles.textContent}>
-                <View style={styles.notifHeader}><Text style={styles.notifTitle}>{item.title}</Text><Text style={styles.notifTime}>{item.time}</Text></View>
-                <Text style={styles.notifBody} numberOfLines={2}>{item.body}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-        />
-      </SafeAreaView>
-    </View>
+    <LinearGradient
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.container}
+    >
+      <View style={styles.bgDecoration1} />
+      <View style={styles.bgDecoration2} />
+
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Inbox</Text>
+          <Text style={styles.headerSubtitle}>
+            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+          </Text>
+        </View>
+        {unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadText}>{unreadCount}</Text>
+          </View>
+        )}
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchData(); }}
+            tintColor={Colors.highlight.gold}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {notifs.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="notifications-outline" size={56} color={Colors.primary.navy} />
+            </View>
+            <Text style={styles.emptyTitle}>Nothing yet</Text>
+            <Text style={styles.emptyText}>
+              Matches and trip updates will appear here.
+            </Text>
+          </View>
+        ) : (
+          notifs.map(n => {
+            const isRead = n.read || readIds.has(n.id);
+            const iconMeta = TYPE_ICON[n.type];
+            return (
+              <TouchableOpacity
+                key={n.id}
+                style={[styles.notifCard, isRead && styles.notifCardRead]}
+                onPress={() => { markRead(n.id); n.action?.(); }}
+                activeOpacity={n.action ? 0.8 : 1}
+              >
+                <View style={styles.notifLeft}>
+                  {n.avatarUrl ? (
+                    <View style={styles.avatarWrap}>
+                      <Image source={{ uri: n.avatarUrl }} style={styles.avatar} />
+                      <View style={[styles.iconOverlay, { backgroundColor: iconMeta.bg }]}>
+                        <Ionicons name={iconMeta.name as any} size={10} color="white" />
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={[styles.iconCircle, { backgroundColor: iconMeta.bg }]}>
+                      <Ionicons name={iconMeta.name as any} size={22} color="white" />
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.notifBody}>
+                  <View style={styles.notifTitleRow}>
+                    <Text style={[styles.notifTitle, isRead && styles.notifTitleRead]}>
+                      {n.title}
+                    </Text>
+                    {!isRead && <View style={styles.unreadDot} />}
+                  </View>
+                  <Text style={styles.notifText}>{n.body}</Text>
+                  <Text style={styles.notifTime}>{timeAgo(n.createdAt)}</Text>
+                </View>
+
+                {n.action && (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.neutral.greyLight} />
+                )}
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FEFEFE' },
-  header: { paddingHorizontal: 20, paddingTop: 10, marginBottom: 15 },
-  headerTitle: { fontSize: 28, fontWeight: '700', color: '#161616' },
-  headerSubtitle: { fontSize: 16, color: '#161616', opacity: 0.5 },
-  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  notifItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
-  iconBox: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
-  textContent: { flex: 1, marginLeft: 15 },
-  notifHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  notifTitle: { fontSize: 16, fontWeight: '700', color: '#161616' },
-  notifTime: { fontSize: 11, color: '#000', opacity: 0.3 },
-  notifBody: { fontSize: 14, color: '#161616', opacity: 0.6, lineHeight: 18 },
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  logoLoader: { width: 200, height: 80, marginBottom: 20 },
+
+  bgDecoration1: {
+    position: 'absolute', top: -100, right: -100,
+    width: 300, height: 300, borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+  },
+  bgDecoration2: {
+    position: 'absolute', bottom: 100, left: -150,
+    width: 350, height: 350, borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24, paddingTop: 70, paddingBottom: 20,
+  },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: Colors.neutral.white, marginBottom: 4 },
+  headerSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
+  unreadBadge: {
+    backgroundColor: Colors.highlight.error,
+    minWidth: 32, height: 32, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8,
+  },
+  unreadText: { color: Colors.neutral.white, fontSize: 14, fontWeight: '800' },
+
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+
+  notifCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 20, padding: 14, marginBottom: 10, gap: 12,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12, shadowRadius: 12, elevation: 5,
+  },
+  notifCardRead: { opacity: 0.7 },
+
+  notifLeft: { justifyContent: 'center', alignItems: 'center' },
+  avatarWrap: { position: 'relative' },
+  avatar: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: Colors.neutral.border,
+  },
+  iconOverlay: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 20, height: 20, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: Colors.neutral.white,
+  },
+  iconCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    justifyContent: 'center', alignItems: 'center',
+  },
+
+  notifBody: { flex: 1 },
+  notifTitleRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 6, marginBottom: 2,
+  },
+  notifTitle: { fontSize: 15, fontWeight: '700', color: Colors.primary.navy },
+  notifTitleRead: { fontWeight: '500' },
+  unreadDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: Colors.highlight.error,
+  },
+  notifText: { fontSize: 13, color: Colors.neutral.grey, lineHeight: 18, marginBottom: 4 },
+  notifTime: { fontSize: 11, color: Colors.neutral.greyLight },
+
+  emptyState: { paddingVertical: 80, alignItems: 'center', paddingHorizontal: 40 },
+  emptyIconCircle: {
+    width: 120, height: 120, borderRadius: 60,
+    backgroundColor: Colors.neutral.white,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 24,
+    shadowColor: Colors.shadow.light,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 4,
+  },
+  emptyTitle: { fontSize: 26, fontWeight: '800', color: Colors.neutral.white, marginBottom: 12 },
+  emptyText: {
+    color: 'rgba(255,255,255,0.7)', fontSize: 16,
+    textAlign: 'center', lineHeight: 24,
+  },
 });

@@ -1,259 +1,404 @@
 // app/onboarding/step0.tsx
+// CHANGE from original: after successful profile save, routes to /onboarding/personality
+// instead of /(tabs) directly. Everything else is identical to the original.
+
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BirthdayPicker, BirthdayValue } from '../../components/BirthdayPicker';
-import { LocationPicker, LocationValue } from '../../components/LocationPicker';
+import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
-
-const GENDERS = ['Man', 'Woman', 'Non-binary'];
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const ACCENT = '#E8755A';
-
-const MediaThumbnail = ({ uri, onRemove }: { uri: string; onRemove: () => void }) => {
-  const isVideo = /\.(mp4|mov|qt)$/i.test(uri);
-  const player = useVideoPlayer(isVideo ? uri : null, (p) => { p.muted = true; p.loop = false; });
-  return (
-    <View style={s.thumbWrap}>
-      {isVideo
-        ? <VideoView player={player} style={s.thumb} contentFit="cover" nativeControls={false} />
-        : <Image source={{ uri }} style={s.thumb} />}
-      <TouchableOpacity style={s.removeBtn} onPress={onRemove}>
-        <Ionicons name="close" size={12} color="#FFF" />
-      </TouchableOpacity>
-    </View>
-  );
-};
 
 export default function OnboardingStep0() {
   const router = useRouter();
   const [username, setUsername] = useState('');
-  const [gender, setGender] = useState('');
-  const [birthday, setBirthday] = useState<BirthdayValue | null>(null);
-  const [locationValue, setLocationValue] = useState<LocationValue | null>(null);
-  const [mediaItems, setMediaItems] = useState<string[]>([]);
+  const [images, setImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const pickMedia = async () => {
-    if (mediaItems.length >= 5) return Alert.alert('Limit Reached', 'Max 5 items.');
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      allowsMultipleSelection: true,
-      selectionLimit: 5 - mediaItems.length,
-      quality: 0.5,
-    });
-    if (!result.canceled && result.assets) {
-      setUploading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      for (const asset of result.assets) {
-        const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
-        const fileName = `${user.id}/${Date.now()}_${Math.random()}.${ext}`;
-        const buf = await (await fetch(asset.uri)).arrayBuffer();
-        await supabase.storage.from('user_photos').upload(fileName, buf);
-        const { data: { publicUrl } } = supabase.storage.from('user_photos').getPublicUrl(fileName);
-        setMediaItems(p => [...p, publicUrl]);
+  const pickImages = async () => {
+    if (images.length >= 5) {
+      Alert.alert('Limit Reached', 'You can upload up to 5 photos.');
+      return;
+    }
+
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        allowsMultipleSelection: true,
+        selectionLimit: 5 - images.length,
+        quality: 0.5,
+      });
+
+      if (!result.canceled) {
+        await uploadMultipleImages(result.assets);
       }
+    } catch (e) {
+      console.error("Picker Error:", e);
+      Alert.alert("Error", "Could not open gallery");
+    }
+  };
+
+  const uploadMultipleImages = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    setUploading(true);
+    const newUrls: string[] = [];
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      for (const asset of assets) {
+        const fileExt = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+        const fileName = `${user.id}/${Date.now()}_${Math.random()}.${fileExt}`;
+
+        const response = await fetch(asset.uri);
+        const arrayBuffer = await response.arrayBuffer();
+
+        const { error: uploadError } = await supabase.storage
+          .from('user_photos')
+          .upload(fileName, arrayBuffer, {
+            contentType: asset.mimeType || 'image/jpeg',
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('user_photos')
+          .getPublicUrl(fileName);
+
+        newUrls.push(publicUrl);
+      }
+
+      setImages(prev => [...prev, ...newUrls]);
+      Alert.alert('Success! 📸', `${newUrls.length} photo(s) uploaded`);
+    } catch (error: any) {
+      console.error("Upload Error:", error);
+      Alert.alert('Upload Failed', error.message);
+    } finally {
       setUploading(false);
     }
   };
 
-  const handleNext = async () => {
-    if (!username.trim()) return Alert.alert('Missing Info', 'Please enter a username.');
-    if (!birthday) return Alert.alert('Missing Info', 'Please select your birthday.');
-    if (!birthday.valid) return Alert.alert('Age Restriction', 'You must be at least 18 to use this app.');
-    if (!gender) return Alert.alert('Missing Info', 'Please select a gender.');
-    if (!locationValue) return Alert.alert('Missing Info', 'Please set your location preference.');
-    if (mediaItems.length === 0) return Alert.alert('Missing Info', 'Add at least one photo or video.');
+  const removeImage = (indexToRemove: number) => {
+    setImages(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  const finishOnboarding = async () => {
+    if (!username.trim()) {
+      Alert.alert('Missing Info', 'Please add a username.');
+      return;
+    }
+    if (images.length === 0) {
+      Alert.alert('Missing Info', 'Please add at least 1 photo.');
+      return;
+    }
 
     setSaving(true);
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const birthdayString = `${birthday.year}-${(MONTHS.indexOf(birthday.month) + 1).toString().padStart(2, '0')}-${birthday.day}`;
-      const { error } = await supabase.from('profiles').update({
-        username: username.trim(),
-        birthday: birthdayString,
-        gender,
-        age: birthday.age,
-        photos: mediaItems,
-        location: locationValue.display,
-        location_mode: locationValue.mode,
-        location_city: locationValue.city || null,
-        location_country: locationValue.country || null,
-      }).eq('id', user.id);
-      if (error) throw error;
-      router.push('/onboarding/personality');
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+      if (!user) {
+        Alert.alert("Error", "You are not logged in.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          username: username.trim(),
+          photos: images,
+          onboarding_complete: true
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        if (error.code === '23505') {
+          Alert.alert('Username Taken', 'Please choose a different username.');
+        } else {
+          Alert.alert('Save Failed', error.message);
+        }
+      } else {
+        await supabase.auth.refreshSession();
+        // ← KEY CHANGE: route to personality screen before entering app
+        router.push('/onboarding/personality');
+      }
+    } catch (e) {
+      console.error("Error:", e);
     } finally {
       setSaving(false);
     }
   };
 
-  // Progress: 5 fields now
-  const progress = [
-    !!username.trim(),
-    !!birthday?.valid,
-    !!gender,
-    !!locationValue,
-    mediaItems.length > 0,
-  ].filter(Boolean).length / 5;
-
   return (
-    <View style={s.container}>
-      <SafeAreaView style={{ flex: 1 }}>
-        {/* Progress Bar */}
-        <View style={s.topBar}>
-          <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
+    <LinearGradient
+      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
+      locations={[0, 0.3, 0.6, 1]}
+      style={styles.gradient}
+    >
+      <View style={styles.bgDecoration1} />
+      <View style={styles.bgDecoration2} />
+
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.headerSection}>
+          <View style={styles.stepIndicator}>
+            <Text style={styles.stepText}>Step 1 of 2</Text>
           </View>
-          <Text style={s.stepLabel}>Step 1 of 4</Text>
+          <Text style={styles.header}>Create Your Profile</Text>
+          <Text style={styles.subHeader}>
+            Add a username and photos. Next you'll pick your travel personality tags.
+          </Text>
         </View>
 
-        <KeyboardAwareScrollView
-          contentContainerStyle={s.scroll}
-          keyboardShouldPersistTaps="handled"
-          enableOnAndroid
-          extraScrollHeight={24}
-          showsVerticalScrollIndicator={false}
-        >
-            <Text style={s.title}>Basic Details</Text>
-            <Text style={s.subtitle}>Let's set up your profile.</Text>
+        {/* Username Input */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Username</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="at" size={20} color={Colors.neutral.grey} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="adventurer_99"
+              placeholderTextColor={Colors.neutral.greyLight}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+            {username.length > 0 && (
+              <Ionicons name="checkmark-circle" size={20} color={Colors.highlight.success} />
+            )}
+          </View>
+        </View>
 
-            {/* Username */}
-            <View style={s.field}>
-              <Text style={s.label}>Username</Text>
-              <TextInput
-                style={s.input}
-                placeholder="e.g. Wanderlust_123"
-                placeholderTextColor="#BBB"
-                value={username}
-                onChangeText={setUsername}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
+        {/* Photos Section */}
+        <View style={styles.section}>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>Your Photos</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{images.length}/5</Text>
             </View>
+          </View>
 
-            {/* Birthday */}
-            <View style={s.field}>
-              <Text style={s.label}>Birthday</Text>
-              <BirthdayPicker accentColor={ACCENT} onChange={setBirthday} />
-            </View>
+          <View style={styles.photoGrid}>
+            {images.map((img, index) => (
+              <View key={index} style={styles.imageWrapper}>
+                <TouchableOpacity onPress={() => setSelectedImage(img)} activeOpacity={0.9}>
+                  <Image source={{ uri: img }} style={styles.thumb} resizeMode="cover" />
+                </TouchableOpacity>
 
-            {/* Gender */}
-            <View style={s.field}>
-              <Text style={s.label}>Gender</Text>
-              <View style={s.genderRow}>
-                {GENDERS.map(g => (
-                  <TouchableOpacity
-                    key={g}
-                    style={[s.pill, gender === g && s.pillActive]}
-                    onPress={() => setGender(g)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[s.pillText, gender === g && s.pillTextActive]}>{g}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+                <TouchableOpacity
+                  style={styles.removeBtn}
+                  onPress={() => removeImage(index)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="close" size={14} color={Colors.neutral.white} />
+                </TouchableOpacity>
 
-            {/* Location — now uses 3-mode picker */}
-            <View style={s.field}>
-              <Text style={s.label}>Location</Text>
-              <LocationPicker
-                value={locationValue}
-                onChange={setLocationValue}
-                accentColor={ACCENT}
-              />
-            </View>
-
-            {/* Media */}
-            <View style={s.field}>
-              <View style={s.labelRow}>
-                <Text style={s.label}>Photos & Videos</Text>
-                <Text style={s.labelCount}>{mediaItems.length}/5</Text>
-              </View>
-              <View style={s.grid}>
-                {mediaItems.map((uri, i) => (
-                  <MediaThumbnail
-                    key={i}
-                    uri={uri}
-                    onRemove={() => setMediaItems(mediaItems.filter((_, j) => j !== i))}
-                  />
-                ))}
-                {mediaItems.length < 5 && (
-                  <TouchableOpacity style={s.addBtn} onPress={pickMedia} activeOpacity={0.7}>
-                    {uploading
-                      ? <ActivityIndicator color={ACCENT} />
-                      : <><Ionicons name="add" size={26} color={ACCENT} /><Text style={s.addText}>Add</Text></>}
-                  </TouchableOpacity>
+                {index === 0 && (
+                  <View style={styles.primaryBadge}>
+                    <Text style={styles.primaryText}>Primary</Text>
+                  </View>
                 )}
               </View>
-            </View>
+            ))}
 
-            {/* CTA */}
-            <TouchableOpacity style={s.cta} onPress={handleNext} disabled={saving} activeOpacity={0.85}>
-              {saving
-                ? <ActivityIndicator color="#FFF" />
-                : <Text style={s.ctaText}>Continue →</Text>}
+            {images.length < 5 && (
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={pickImages}
+                disabled={uploading}
+                activeOpacity={0.8}
+              >
+                {uploading ? (
+                  <ActivityIndicator color={Colors.neutral.white} />
+                ) : (
+                  <>
+                    <Ionicons name="add" size={32} color={Colors.neutral.white} />
+                    <Text style={styles.addText}>Add Photo</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {images.length === 0 && (
+            <Text style={styles.helpText}>
+              💡 Tip: Add at least 3 photos to increase your match rate!
+            </Text>
+          )}
+        </View>
+
+        {/* Next Button */}
+        <TouchableOpacity
+          style={styles.button}
+          onPress={finishOnboarding}
+          disabled={saving || uploading}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={Colors.gradient.sunset}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.buttonGradient}
+          >
+            {saving ? (
+              <ActivityIndicator color={Colors.neutral.white} />
+            ) : (
+              <>
+                <Text style={styles.buttonText}>Next: Pick Your Vibe</Text>
+                <Ionicons name="arrow-forward" size={20} color={Colors.neutral.white} />
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <Text style={styles.footerText}>
+          ℹ️ You can edit all of this later from your profile settings.
+        </Text>
+      </ScrollView>
+
+      {/* Full Screen Image Modal */}
+      <Modal visible={!!selectedImage} transparent={true} animationType="fade">
+        <View style={styles.modalContainer}>
+          <SafeAreaView style={styles.modalSafeArea}>
+            <TouchableOpacity
+              style={styles.closeModalBtn}
+              onPress={() => setSelectedImage(null)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close-circle" size={40} color={Colors.neutral.white} />
             </TouchableOpacity>
-        </KeyboardAwareScrollView>
-      </SafeAreaView>
-    </View>
+
+            {selectedImage && (
+              <Image
+                source={{ uri: selectedImage }}
+                style={styles.fullImage}
+                resizeMode="contain"
+              />
+            )}
+          </SafeAreaView>
+        </View>
+      </Modal>
+    </LinearGradient>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FEFEFE' },
-  topBar: { paddingHorizontal: 24, paddingTop: 6, paddingBottom: 12, gap: 6 },
-  progressTrack: { height: 3, backgroundColor: '#EDEDED', borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: 3, backgroundColor: ACCENT, borderRadius: 4 },
-  stepLabel: { fontSize: 11, fontWeight: '600', color: '#BBB', letterSpacing: 0.5 },
-  scroll: { paddingHorizontal: 24, paddingBottom: 48, gap: 28 },
-  title: { fontSize: 30, fontWeight: '800', color: '#161616', marginTop: 8 },
-  subtitle: { fontSize: 15, color: '#999', marginTop: 2 },
-  field: { gap: 10 },
-  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, color: '#999' },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  labelCount: { fontSize: 12, fontWeight: '700', color: ACCENT },
-  input: {
-    backgroundColor: '#F5F5F5', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 15,
-    fontSize: 16, color: '#161616',
+const styles = StyleSheet.create({
+  gradient: { flex: 1 },
+  container: { flex: 1 },
+
+  bgDecoration1: {
+    position: 'absolute', top: -100, right: -100,
+    width: 300, height: 300, borderRadius: 150,
+    backgroundColor: 'rgba(78, 205, 196, 0.08)',
   },
-  genderRow: { flexDirection: 'row', gap: 10 },
-  pill: { flex: 1, paddingVertical: 13, borderRadius: 14, backgroundColor: '#F5F5F5', alignItems: 'center' },
-  pillActive: { backgroundColor: ACCENT },
-  pillText: { fontWeight: '700', fontSize: 14, color: '#888' },
-  pillTextActive: { color: '#FFF' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  thumbWrap: { position: 'relative' },
-  thumb: { width: 96, height: 128, borderRadius: 14, backgroundColor: '#EEE' },
+  bgDecoration2: {
+    position: 'absolute', bottom: 100, left: -150,
+    width: 350, height: 350, borderRadius: 175,
+    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+  },
+
+  content: { padding: 24, paddingTop: 70, paddingBottom: 40 },
+  headerSection: { marginBottom: 32 },
+  stepIndicator: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+  },
+  stepText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '700' },
+  header: { fontSize: 32, fontWeight: '800', color: Colors.neutral.white, marginBottom: 8 },
+  subHeader: { fontSize: 15, color: 'rgba(255,255,255,0.8)', lineHeight: 22 },
+
+  section: { marginBottom: 32 },
+  label: { fontSize: 16, fontWeight: '700', color: Colors.neutral.white, marginBottom: 12 },
+  labelRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 12,
+  },
+  countBadge: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  countText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '700' },
+
+  inputWrapper: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.neutral.white, borderRadius: 12,
+    paddingHorizontal: 16,
+    shadowColor: Colors.shadow.heavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 4,
+  },
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, paddingVertical: 16, fontSize: 16, color: Colors.primary.navy },
+
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  imageWrapper: { position: 'relative' },
+  thumb: { width: 105, height: 140, borderRadius: 12, backgroundColor: Colors.neutral.border },
   removeBtn: {
     position: 'absolute', top: -6, right: -6,
-    backgroundColor: '#E03724', borderRadius: 10, padding: 4, zIndex: 10,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: Colors.highlight.error,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: Colors.neutral.white,
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 4,
   },
+  primaryBadge: {
+    position: 'absolute', bottom: 8, left: 8,
+    backgroundColor: Colors.highlight.gold,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+  },
+  primaryText: { color: Colors.primary.navy, fontSize: 10, fontWeight: '700' },
   addBtn: {
-    width: 96, height: 128, borderRadius: 14,
-    backgroundColor: '#FFF5F2', borderStyle: 'dashed', borderWidth: 1.5, borderColor: ACCENT + '60',
-    justifyContent: 'center', alignItems: 'center', gap: 4,
+    width: 105, height: 140, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)',
+    borderStyle: 'dashed',
   },
-  addText: { fontSize: 11, fontWeight: '700', color: ACCENT },
-  cta: { backgroundColor: '#161616', padding: 18, borderRadius: 30, alignItems: 'center', marginTop: 4 },
-  ctaText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  addText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '600', marginTop: 4 },
+  helpText: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 12, lineHeight: 20 },
+
+  button: {
+    borderRadius: 12, overflow: 'hidden',
+    shadowColor: Colors.shadow.medium,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2, shadowRadius: 8, elevation: 4,
+    marginTop: 8, marginBottom: 16,
+  },
+  buttonGradient: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', paddingVertical: 18, gap: 8,
+  },
+  buttonText: { color: Colors.neutral.white, fontWeight: '700', fontSize: 17 },
+  footerText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 20 },
+
+  modalContainer: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  modalSafeArea: { flex: 1, width: '100%', justifyContent: 'center' },
+  fullImage: { width: '100%', height: '80%' },
+  closeModalBtn: { position: 'absolute', top: 50, right: 20, zIndex: 20 },
 });

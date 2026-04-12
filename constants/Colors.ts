@@ -1,33 +1,39 @@
 // constants/Colors.ts
 export const Colors = {
   primary: {
-    navy: '#161616',      
-    coral: '#E8755A',     
-    white: '#FEFEFE',
+    navy: '#0F2738',
+    navyLight: '#1B3A57',
+    coral: '#FF6B6B',
+    coralLight: '#FF8787',
+  },
+  secondary: {
+    teal: '#4ECDC4',
+    purple: '#9B59B6',
+    orange: '#F39C12',
   },
   neutral: {
-    background: '#FEFEFE',
-    greyElement: '#F1F1F1', 
-    inputBg: '#F2F2F2',     
-    greyText: '#161616',
-    border: 'rgba(0, 0, 0, 0.12)',
+    trailDust: '#F8F9FA',
+    white: '#FFFFFF',
+    grey: '#6C757D',
     greyLight: '#ADB5BD',
+    greyDark: '#495057',
+    border: '#E9ECEF',
   },
   highlight: {
-    gold: '#D4AF37',      
-    peach: '#FFCB9A',     
-    success: '#3B9F16',   
-    error: '#E03724',     
-    warning: '#EEC72E',   
+    gold: '#FFD93D',
+    success: '#6BCF7F',
+    error: '#FF4757',
+    warning: '#FFA502',
   },
   gradient: {
-    coralBlur: ['rgba(255, 122, 73, 0.04)', 'rgba(255, 69, 0, 0.04)'],
-    yellowBlur: ['rgba(255, 243, 73, 0.04)', 'rgba(175, 166, 32, 0.04)'],
-    buttonCoral: ['#E8755A', '#CA573D'],
+    sunset: ['#FF6B6B', '#FFD93D'] as const,
+    ocean: ['#4ECDC4', '#556EE6'] as const,
+    dusk: ['#9B59B6', '#FF6B6B'] as const,
+    adventure: ['#0F2738', '#1B3A57'] as const,
   },
   shadow: {
-    light: 'rgba(0, 0, 0, 0.05)',
-    medium: 'rgba(0, 0, 0, 0.1)',
-    heavy: 'rgba(0, 0, 0, 0.2)', // Fixed the missing 'heavy' property
-  }
+    light: 'rgba(0, 0, 0, 0.08)',
+    medium: 'rgba(0, 0, 0, 0.12)',
+    heavy: 'rgba(0, 0, 0, 0.16)',
+  },
 };
