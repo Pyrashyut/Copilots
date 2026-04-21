@@ -67,7 +67,7 @@ export default function OnboardingMatrix() {
         {/* Progress */}
         <View style={s.topBar}>
           <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: '100%' }]} />
+            <View style={[s.progressFill, { width: `${Math.min(100, (total / 5) * 100)}%` }]} />
           </View>
           <Text style={s.stepLabel}>Step 4 of 4</Text>
         </View>
@@ -180,6 +180,6 @@ const s = StyleSheet.create({
   chipText: { fontSize: 14, color: '#444', fontWeight: '600' },
   footer: { padding: 24, paddingTop: 10, gap: 10 },
   tally: { textAlign: 'center', fontSize: 13, color: '#BBB', fontWeight: '600' },
-  cta: { backgroundColor: '#161616', padding: 18, borderRadius: 30, alignItems: 'center' },
+  cta: { backgroundColor: ACCENT, padding: 18, borderRadius: 30, alignItems: 'center' },
   ctaText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
 });

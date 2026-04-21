@@ -124,7 +124,6 @@ export default function OnboardingStep0() {
         .update({
           username: username.trim(),
           photos: images,
-          onboarding_complete: true
         })
         .eq('id', user.id);
 
@@ -135,8 +134,6 @@ export default function OnboardingStep0() {
           Alert.alert('Save Failed', error.message);
         }
       } else {
-        await supabase.auth.refreshSession();
-        // ← KEY CHANGE: route to personality screen before entering app
         router.push('/onboarding/personality');
       }
     } catch (e) {
@@ -158,7 +155,7 @@ export default function OnboardingStep0() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.headerSection}>
           <View style={styles.stepIndicator}>
-            <Text style={styles.stepText}>Step 1 of 2</Text>
+            <Text style={styles.stepText}>Step 1 of 3</Text>
           </View>
           <Text style={styles.header}>Create Your Profile</Text>
           <Text style={styles.subHeader}>

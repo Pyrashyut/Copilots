@@ -74,6 +74,31 @@ export default function TripSelection() {
       if (!user) return;
       setCurrentUserId(user.id);
 
+      // If a specific bookingId was passed (from a received proposal), load it directly
+      if (params.bookingId && !String(params.bookingId).startsWith('demo_')) {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('id', params.bookingId)
+          .single();
+        if (!error && data) { setBooking(data); return; }
+      }
+
+      // If it's a demo booking, synthesize a mock booking from the tierId param
+      if (String(params.bookingId || '').startsWith('demo_') && params.tierId) {
+        setBooking({
+          id: params.bookingId,
+          tier_id: params.tierId,
+          status: 'pending',
+          invited_by: params.matchId, // other user invited us
+          user_a: params.matchId,
+          user_b: user.id,
+          _isDemo: true,
+        });
+        return;
+      }
+
+      // Otherwise query by user pair
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
@@ -83,7 +108,6 @@ export default function TripSelection() {
       if (error) { setBooking(null); return; }
 
       if (data && data.length > 0) {
-        // Prefer active/pending bookings; skip cancelled ones
         const active = data.find(b => b.status !== 'cancelled');
         setBooking(active || null);
       } else {
@@ -141,11 +165,12 @@ export default function TripSelection() {
 
   const handleAccept = async () => {
     if (!booking) return;
-    const tierName = TIERS.find(t => t.id === booking.tier_id)?.name || "Trip";
-    router.push({ 
-      pathname: '/trip/payment', 
-      params: { bookingId: booking.id, tierName } 
-    });
+    if (booking._isDemo) {
+      Alert.alert('Demo Mode', 'In the live app, this would take you to the payment screen to confirm the trip!');
+      return;
+    }
+    const tierName = TIERS.find(t => t.id === booking.tier_id)?.name || 'Trip';
+    router.push({ pathname: '/trip/payment', params: { bookingId: booking.id, tierName } });
   };
 
   const handleDeclineOrCancel = async () => {
@@ -330,7 +355,7 @@ const styles = StyleSheet.create({
   errorCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 20, backgroundColor: '#FFF0F0', borderRadius: 12, marginBottom: 20, width: '100%' },
   errorText: { color: '#D32F2F', fontWeight: '600' },
   actionColumn: { width: '100%', gap: 12, alignItems: 'center' },
-  primaryBtn: { width: '100%', backgroundColor: '#161616', paddingVertical: 18, borderRadius: 100, alignItems: 'center' },
+  primaryBtn: { width: '100%', backgroundColor: '#E8755A', paddingVertical: 18, borderRadius: 100, alignItems: 'center' },
   primaryBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
   secondaryBtn: { width: '100%', backgroundColor: 'transparent', paddingVertical: 12, alignItems: 'center' },
   secondaryBtnText: { color: '#E03724', fontWeight: '600', fontSize: 14 }

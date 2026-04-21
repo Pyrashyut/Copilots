@@ -1,9 +1,4 @@
 // app/(tabs)/index.tsx
-// Changes from previous version:
-// - Compatibility engine (getMatchData) wired up and passed to SwipeCard
-// - Trip tier preferences filter added to filter modal
-// - matchData passed to SwipeCard so reasons + score show on card
-
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -13,6 +8,7 @@ import {
   Alert,
   Image,
   Modal,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -112,14 +108,12 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<any[]>([]);
   const [matchDataMap, setMatchDataMap] = useState<Record<string, MatchData>>({});
-  const [myProfile, setMyProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [pendingFilters, setPendingFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [superLikeFlash, setSuperLikeFlash] = useState(false);
-  const [canUndo, setCanUndo] = useState(false);
+  const [discoverTab, setDiscoverTab] = useState<'people' | 'trips'>('people');
 
   const lastSwipeRef = useRef<{ profile: any; swipeId?: string } | null>(null);
   const currentUserRef = useRef<string | null>(null);
@@ -141,7 +135,7 @@ export default function DiscoverScreen() {
         .select('*')
         .eq('id', user.id)
         .single();
-      setMyProfile(me);
+      // me used locally for compatibility engine and location filter
 
       const { data: swipes } = await supabase
         .from('swipes')
@@ -210,7 +204,6 @@ export default function DiscoverScreen() {
       setProfiles(results);
       setMatchDataMap(mdMap);
       setCurrentIndex(0);
-      setCanUndo(false);
       lastSwipeRef.current = null;
     } catch (err) {
       console.error(err);
@@ -226,7 +219,6 @@ export default function DiscoverScreen() {
     const isLike = direction === 'right';
 
     setCurrentIndex(i => i + 1);
-    setCanUndo(false);
     lastSwipeRef.current = { profile };
 
     try {
@@ -241,65 +233,12 @@ export default function DiscoverScreen() {
 
       if (!error && data) {
         lastSwipeRef.current = { profile, swipeId: data.id };
-        setCanUndo(true);
       }
 
       if (isLike) checkMatch(userId, profile);
     } catch (err) {
       console.error(err);
     }
-  };
-
-  // ─── Super Like ───────────────────────────────────────────────────
-  const handleSuperLike = async () => {
-    if (currentIndex >= profiles.length) return;
-    const profile = profiles[currentIndex];
-
-    setSuperLikeFlash(true);
-    setTimeout(() => setSuperLikeFlash(false), 600);
-    setCurrentIndex(i => i + 1);
-    setCanUndo(false);
-    lastSwipeRef.current = { profile };
-
-    try {
-      const userId = currentUserRef.current;
-      if (!userId) return;
-
-      const { data, error } = await supabase
-        .from('swipes')
-        .insert({ liker_id: userId, likee_id: profile.id, is_like: true, is_super_like: true })
-        .select('id')
-        .single();
-
-      if (!error && data) {
-        lastSwipeRef.current = { profile, swipeId: data.id };
-        setCanUndo(true);
-      }
-
-      checkMatch(userId, profile);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // ─── Undo ─────────────────────────────────────────────────────────
-  const handleUndo = async () => {
-    if (!canUndo || !lastSwipeRef.current) return;
-    const { profile, swipeId } = lastSwipeRef.current;
-
-    if (swipeId) {
-      await supabase.from('swipes').delete().eq('id', swipeId);
-    }
-
-    setCurrentIndex(i => Math.max(0, i - 1));
-    setProfiles(prev => {
-      const updated = [...prev];
-      updated[currentIndex - 1] = profile;
-      return updated;
-    });
-
-    lastSwipeRef.current = null;
-    setCanUndo(false);
   };
 
   // ─── Match check ──────────────────────────────────────────────────
@@ -344,24 +283,20 @@ export default function DiscoverScreen() {
   // ─── Loading ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
-        style={styles.center}
-      >
+      <View style={styles.center}>
         <Image source={require('../../assets/images/logo.png')} style={styles.logoLoader} resizeMode="contain" />
-        <ActivityIndicator size="large" color={Colors.highlight.gold} />
+        <ActivityIndicator size="large" color="#E8755A" />
         <Text style={styles.loadingText}>Finding your copilots...</Text>
-      </LinearGradient>
+      </View>
     );
   }
 
   if (currentIndex >= profiles.length) {
     return (
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
-        style={styles.center}
-      >
-        <Ionicons name="airplane-outline" size={64} color="rgba(255,255,255,0.4)" />
+      <View style={styles.center}>
+        <View style={styles.emptyIconCircle}>
+          <Ionicons name="airplane-outline" size={56} color="#E8755A" />
+        </View>
         <Text style={styles.emptyTitle}>No More Pilots</Text>
         <Text style={styles.emptySubtitle}>
           {filtersActive ? 'Try adjusting your filters' : 'Check back soon!'}
@@ -371,7 +306,7 @@ export default function DiscoverScreen() {
             <Text style={styles.clearFiltersBtnText}>Clear Filters</Text>
           </TouchableOpacity>
         )}
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -379,48 +314,42 @@ export default function DiscoverScreen() {
   const currentMatchData = matchDataMap[currentProfile?.id];
 
   return (
-    <LinearGradient
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
-      {/* Super like flash */}
-      {superLikeFlash && (
-        <View style={styles.superLikeOverlay} pointerEvents="none">
-          <Ionicons name="star" size={80} color={Colors.highlight.gold} />
-        </View>
-      )}
-
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }}>
       {/* ── HEADER ── */}
       <View style={styles.header}>
+        {/* Logo */}
         <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Discover</Text>
-          <Text style={styles.headerSubtitle}>Find your travel companion</Text>
-        </View>
-
-        <View style={styles.headerRight}>
+        {/* People / Trips toggle */}
+        <View style={styles.discoverToggle}>
           <TouchableOpacity
-            style={[styles.headerIconBtn, !canUndo && styles.headerIconBtnDisabled]}
-            onPress={handleUndo}
-            disabled={!canUndo}
+            style={[styles.toggleOption, discoverTab === 'people' && styles.toggleOptionActive]}
+            onPress={() => setDiscoverTab('people')}
           >
-            <Ionicons name="arrow-undo" size={18} color={canUndo ? Colors.neutral.white : 'rgba(255,255,255,0.3)'} />
+            <Text style={[styles.toggleText, discoverTab === 'people' && styles.toggleTextActive]}>
+              People
+            </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[styles.headerIconBtn, filtersActive && styles.headerIconBtnActive]}
-            onPress={openFilters}
+            style={[styles.toggleOption, discoverTab === 'trips' && styles.toggleOptionActive]}
+            onPress={() => setDiscoverTab('trips')}
           >
-            <Ionicons name="options" size={18} color={Colors.neutral.white} />
-            {filtersActive && <View style={styles.filterActiveDot} />}
+            <Text style={[styles.toggleText, discoverTab === 'trips' && styles.toggleTextActive]}>
+              Trips
+            </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Search icon */}
+        <TouchableOpacity style={styles.headerIconBtn} onPress={openFilters}>
+          <Ionicons name="search-outline" size={20} color="#333" />
+          {filtersActive && <View style={styles.filterActiveDot} />}
+        </TouchableOpacity>
       </View>
 
-      {/* Active filter chips */}
-      {filtersActive && (
+      {/* Active filter chips — People tab only */}
+      {discoverTab === 'people' && filtersActive && (
         <ScrollView
           horizontal showsHorizontalScrollIndicator={false}
           style={styles.chipRow} contentContainerStyle={styles.chipRowContent}
@@ -448,41 +377,50 @@ export default function DiscoverScreen() {
         </ScrollView>
       )}
 
-      {/* ── CARD ── */}
-      <View style={styles.cardArea}>
-        <SwipeCard profile={currentProfile} matchData={currentMatchData} />
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={viewProfile} />
-      </View>
-
-      {/* ── ACTIONS ── */}
-      <View style={styles.actionsContainer}>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity onPress={() => handleSwipe('left')}>
-            <View style={[styles.actionButton, styles.pass]}>
-              <Ionicons name="close" size={34} color={Colors.highlight.error} />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={handleSuperLike}>
-            <View style={[styles.actionButton, styles.superLike]}>
-              <Ionicons name="star" size={28} color={Colors.neutral.white} />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={viewProfile}>
-            <View style={[styles.actionButton, styles.info]}>
-              <Ionicons name="information" size={26} color={Colors.neutral.white} />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => handleSwipe('right')}>
-            <View style={[styles.actionButton, styles.like]}>
-              <Ionicons name="heart" size={34} color={Colors.neutral.white} />
-            </View>
-          </TouchableOpacity>
+      {discoverTab === 'trips' ? (
+        /* ── TRIPS TAB ── */
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.tripsContent} showsVerticalScrollIndicator={false}>
+          <Text style={styles.tripsHeading}>Find Your Next Trip</Text>
+          <Text style={styles.tripsSubtext}>Browse trips by adventure tier and connect with co-pilots heading the same way.</Text>
+          {[
+            { id: 'local',         label: 'Local Explorer',   price: '£50–£150',     dur: '4–8 hrs',   icon: 'cafe',    color: Colors.primary.coral },
+            { id: 'national',      label: 'Weekend Escape',   price: '£200–£800',    dur: '2–3 days',  icon: 'car',     color: Colors.highlight.gold },
+            { id: 'international', label: 'International',    price: '£800–£2,000',  dur: '4–7 days',  icon: 'airplane',color: Colors.secondary.teal },
+            { id: 'exotic',        label: 'Exotic Adventure', price: '£2,000+',      dur: '7–14 days', icon: 'sunny',   color: '#9B59B6' },
+          ].map(tier => (
+            <TouchableOpacity key={tier.id} style={styles.tripTierCard} activeOpacity={0.85} onPress={() => openFilters()}>
+              <View style={[styles.tripTierIcon, { backgroundColor: tier.color + '22' }]}>
+                <Ionicons name={tier.icon as any} size={26} color={tier.color} />
+              </View>
+              <View style={styles.tripTierInfo}>
+                <Text style={styles.tripTierName}>{tier.label}</Text>
+                <Text style={styles.tripTierMeta}>{tier.dur} · {tier.price}</Text>
+              </View>
+              <View style={[styles.tripTierBadge, { backgroundColor: tier.color }]}>
+                <Text style={styles.tripTierBadgeText}>Explore</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+          <View style={styles.tripsComingSoon}>
+            <Ionicons name="construct-outline" size={28} color="rgba(0,0,0,0.3)" />
+            <Text style={styles.tripsComingSoonText}>Full trip discovery coming soon</Text>
+          </View>
+        </ScrollView>
+      ) : (
+        /* ── PEOPLE TAB ── */
+        <View style={styles.cardArea}>
+          <SwipeCard
+            key={currentProfile.id}
+            profile={currentProfile}
+            matchData={currentMatchData}
+            onSwipeLeft={() => handleSwipe('left')}
+            onSwipeRight={() => handleSwipe('right')}
+            onTap={viewProfile}
+          />
+          <Text style={styles.remainingText}>{profiles.length - currentIndex} remaining</Text>
         </View>
-        <Text style={styles.remainingText}>{profiles.length - currentIndex} profiles remaining</Text>
-      </View>
+      )}
+      </SafeAreaView>
 
       {/* ── FILTER MODAL ── */}
       <Modal visible={showFilters} animationType="slide" transparent>
@@ -493,41 +431,47 @@ export default function DiscoverScreen() {
 
             {/* Age Range */}
             <Text style={styles.filterLabel}>Age Range</Text>
-            <View style={styles.ageDisplay}>
-              <Text style={styles.ageValue}>{pendingFilters.minAge}</Text>
-              <Text style={styles.ageSeparator}>to</Text>
-              <Text style={styles.ageValue}>{pendingFilters.maxAge}</Text>
+            <View style={styles.ageRangeRow}>
+              <View style={styles.ageStepper}>
+                <Text style={styles.ageStepperLabel}>Min</Text>
+                <View style={styles.ageStepperControls}>
+                  <TouchableOpacity
+                    style={styles.ageStepBtn}
+                    onPress={() => setPendingFilters(f => ({ ...f, minAge: Math.max(MIN_AGE, f.minAge - 1) }))}
+                  >
+                    <Ionicons name="remove" size={18} color="#161616" />
+                  </TouchableOpacity>
+                  <Text style={styles.ageStepValue}>{pendingFilters.minAge}</Text>
+                  <TouchableOpacity
+                    style={styles.ageStepBtn}
+                    onPress={() => setPendingFilters(f => ({ ...f, minAge: Math.min(f.maxAge - 1, f.minAge + 1) }))}
+                  >
+                    <Ionicons name="add" size={18} color="#161616" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.ageStepperDivider} />
+
+              <View style={styles.ageStepper}>
+                <Text style={styles.ageStepperLabel}>Max</Text>
+                <View style={styles.ageStepperControls}>
+                  <TouchableOpacity
+                    style={styles.ageStepBtn}
+                    onPress={() => setPendingFilters(f => ({ ...f, maxAge: Math.max(f.minAge + 1, f.maxAge - 1) }))}
+                  >
+                    <Ionicons name="remove" size={18} color="#161616" />
+                  </TouchableOpacity>
+                  <Text style={styles.ageStepValue}>{pendingFilters.maxAge}</Text>
+                  <TouchableOpacity
+                    style={styles.ageStepBtn}
+                    onPress={() => setPendingFilters(f => ({ ...f, maxAge: Math.min(MAX_AGE, f.maxAge + 1) }))}
+                  >
+                    <Ionicons name="add" size={18} color="#161616" />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-
-            <Text style={styles.filterSubLabel}>Minimum age</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ageScroll}>
-              {AGE_STEPS.filter(a => a <= pendingFilters.maxAge).map(age => (
-                <TouchableOpacity
-                  key={`min_${age}`}
-                  style={[styles.ageChip, pendingFilters.minAge === age && styles.ageChipSelected]}
-                  onPress={() => setPendingFilters(f => ({ ...f, minAge: age }))}
-                >
-                  <Text style={[styles.ageChipText, pendingFilters.minAge === age && styles.ageChipTextSelected]}>
-                    {age}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.filterSubLabel}>Maximum age</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ageScroll}>
-              {AGE_STEPS.filter(a => a >= pendingFilters.minAge).map(age => (
-                <TouchableOpacity
-                  key={`max_${age}`}
-                  style={[styles.ageChip, pendingFilters.maxAge === age && styles.ageChipSelected]}
-                  onPress={() => setPendingFilters(f => ({ ...f, maxAge: age }))}
-                >
-                  <Text style={[styles.ageChipText, pendingFilters.maxAge === age && styles.ageChipTextSelected]}>
-                    {age}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
 
             {/* Location */}
             <Text style={[styles.filterLabel, { marginTop: 20 }]}>Location</Text>
@@ -549,7 +493,7 @@ export default function DiscoverScreen() {
                 <Ionicons
                   name={opt.icon}
                   size={20}
-                  color={pendingFilters.locationMode === opt.value ? Colors.neutral.white : Colors.primary.navy}
+                  color={pendingFilters.locationMode === opt.value ? '#FFF' : '#888'}
                 />
                 <Text style={[
                   styles.locationOptionText,
@@ -605,76 +549,86 @@ export default function DiscoverScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF' },
   logoLoader: { width: 200, height: 80, marginBottom: 20 },
-  loadingText: { color: Colors.neutral.white, fontSize: 15 },
-  emptyTitle: { fontSize: 28, color: Colors.neutral.white, fontWeight: '800', marginTop: 16 },
-  emptySubtitle: { fontSize: 15, color: 'rgba(255,255,255,0.7)', marginTop: 8 },
+  loadingText: { color: '#888', fontSize: 15 },
+  emptyIconCircle: {
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: 'rgba(232,117,90,0.1)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+  },
+  emptyTitle: { fontSize: 28, color: '#161616', fontWeight: '800', marginTop: 8 },
+  emptySubtitle: { fontSize: 15, color: '#999', marginTop: 8 },
   clearFiltersBtn: {
-    marginTop: 20, backgroundColor: Colors.neutral.white,
+    marginTop: 20, backgroundColor: '#E8755A',
     paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20,
   },
-  clearFiltersBtnText: { color: Colors.primary.navy, fontWeight: '700', fontSize: 15 },
-
-  superLikeOverlay: {
-    ...StyleSheet.absoluteFillObject, zIndex: 99,
-    justifyContent: 'center', alignItems: 'center',
-    backgroundColor: 'rgba(255,217,61,0.2)',
-  },
+  clearFiltersBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 
   header: {
-    height: 110, paddingTop: 50, paddingHorizontal: 20,
+    paddingTop: 12, paddingBottom: 12, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  logo: { width: 80, height: 30, tintColor: Colors.neutral.white },
-  headerCenter: { alignItems: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.neutral.white },
-  headerSubtitle: { fontSize: 11, color: 'rgba(255,255,255,0.7)' },
-  headerRight: { flexDirection: 'row', gap: 8 },
+  logo: { width: 80, height: 30 },
+  discoverToggle: {
+    flexDirection: 'row',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.12)',
+    overflow: 'hidden',
+  },
+  toggleOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+  },
+  toggleOptionActive: {
+    backgroundColor: 'rgba(0,0,0,0.06)',
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(0,0,0,0.4)',
+  },
+  toggleTextActive: {
+    color: '#161616',
+    fontWeight: '700',
+  },
   headerIconBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(0,0,0,0.07)',
     justifyContent: 'center', alignItems: 'center', position: 'relative',
   },
-  headerIconBtnDisabled: { opacity: 0.4 },
-  headerIconBtnActive: { backgroundColor: Colors.secondary.teal },
+  headerIconBtnActive: { backgroundColor: Colors.primary.coral },
   filterActiveDot: {
     position: 'absolute', top: 6, right: 6,
     width: 7, height: 7, borderRadius: 4,
     backgroundColor: Colors.highlight.gold,
-    borderWidth: 1, borderColor: Colors.primary.navy,
+    borderWidth: 1, borderColor: '#FFF',
   },
 
   chipRow: { maxHeight: 36, marginBottom: 4 },
   chipRowContent: { paddingHorizontal: 20, gap: 8, alignItems: 'center' },
   chip: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(232,117,90,0.12)',
     paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(232,117,90,0.3)',
   },
-  chipText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '600' },
+  chipText: { color: Colors.primary.coral, fontSize: 12, fontWeight: '600' },
   chipClear: {
-    backgroundColor: 'rgba(255,71,87,0.25)',
+    backgroundColor: 'rgba(255,71,87,0.1)',
     paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
   },
   chipClearText: { color: Colors.highlight.error, fontSize: 12, fontWeight: '700' },
 
-  cardArea: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  actionsContainer: { paddingBottom: 28, alignItems: 'center' },
-  buttonRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 10 },
-  actionButton: { justifyContent: 'center', alignItems: 'center', borderRadius: 100 },
-  pass:      { width: 64, height: 64, backgroundColor: Colors.neutral.white },
-  superLike: { width: 54, height: 54, backgroundColor: Colors.highlight.gold },
-  info:      { width: 54, height: 54, backgroundColor: Colors.secondary.teal },
-  like:      { width: 64, height: 64, backgroundColor: Colors.highlight.success },
-  remainingText: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
+  cardArea: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  remainingText: { color: 'rgba(0,0,0,0.3)', fontSize: 12, fontWeight: '500' },
 
   // Filter modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
@@ -689,39 +643,40 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral.border,
     alignSelf: 'center', marginBottom: 20,
   },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: Colors.primary.navy, marginBottom: 24 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#161616', marginBottom: 24 },
 
   filterLabel: {
-    fontSize: 14, fontWeight: '700', color: Colors.primary.navy,
+    fontSize: 14, fontWeight: '700', color: '#161616',
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
   },
-  filterSubLabel: { fontSize: 13, color: Colors.neutral.grey, marginBottom: 8, marginTop: 2 },
+  filterSubLabel: { fontSize: 13, color: '#999', marginBottom: 8, marginTop: 2 },
 
-  ageDisplay: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  ageValue: { fontSize: 32, fontWeight: '800', color: Colors.primary.navy },
-  ageSeparator: { fontSize: 16, color: Colors.neutral.grey },
-
-  ageScroll: { marginBottom: 8 },
-  ageChip: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.neutral.trailDust,
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: 8, borderWidth: 1.5, borderColor: Colors.neutral.border,
+  ageRangeRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#F7F7F7', borderRadius: 16,
+    marginBottom: 20, overflow: 'hidden',
   },
-  ageChipSelected: { backgroundColor: Colors.primary.navy, borderColor: Colors.primary.navy },
-  ageChipText: { fontSize: 13, fontWeight: '600', color: Colors.neutral.grey },
-  ageChipTextSelected: { color: Colors.neutral.white },
+  ageStepper: { flex: 1, alignItems: 'center', paddingVertical: 16 },
+  ageStepperLabel: { fontSize: 11, fontWeight: '700', color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  ageStepperControls: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  ageStepBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+  },
+  ageStepValue: { fontSize: 28, fontWeight: '800', color: '#E8755A', minWidth: 44, textAlign: 'center' },
+  ageStepperDivider: { width: 1, height: 60, backgroundColor: 'rgba(0,0,0,0.08)' },
 
   locationOption: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14, borderRadius: 14,
-    backgroundColor: Colors.neutral.trailDust,
-    borderWidth: 1.5, borderColor: Colors.neutral.border,
+    backgroundColor: '#F7F7F7',
+    borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.08)',
     marginBottom: 10,
   },
-  locationOptionSelected: { backgroundColor: Colors.primary.navy, borderColor: Colors.primary.navy },
-  locationOptionText: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.primary.navy },
-  locationOptionTextSelected: { color: Colors.neutral.white },
+  locationOptionSelected: { backgroundColor: '#E8755A', borderColor: '#E8755A' },
+  locationOptionText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#555' },
+  locationOptionTextSelected: { color: '#FFF' },
 
   // Tier grid
   tierGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
@@ -729,12 +684,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 10,
     borderRadius: 20, borderWidth: 1.5,
-    backgroundColor: Colors.neutral.trailDust,
-    borderColor: Colors.neutral.border,
+    backgroundColor: '#F7F7F7',
+    borderColor: 'rgba(0,0,0,0.08)',
   },
-  tierOptionSelected: { backgroundColor: Colors.primary.navy, borderColor: Colors.primary.navy },
-  tierOptionText: { fontSize: 13, fontWeight: '600', color: Colors.primary.navy },
-  tierOptionTextSelected: { color: Colors.neutral.white },
+  tierOptionSelected: { backgroundColor: '#E8755A', borderColor: '#E8755A' },
+  tierOptionText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  tierOptionTextSelected: { color: '#FFF' },
 
   modalButtons: { flexDirection: 'row', gap: 12, marginTop: 24 },
   resetBtn: {
@@ -745,4 +700,35 @@ const styles = StyleSheet.create({
   applyBtn: { flex: 2, borderRadius: 14, overflow: 'hidden' },
   applyBtnGradient: { paddingVertical: 16, alignItems: 'center' },
   applyBtnText: { fontSize: 15, fontWeight: '700', color: Colors.neutral.white },
+
+  // Trips tab
+  tripsContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  tripsHeading: { fontSize: 24, fontWeight: '800', color: '#161616', marginBottom: 6 },
+  tripsSubtext: { fontSize: 14, color: 'rgba(0,0,0,0.5)', lineHeight: 20, marginBottom: 24 },
+  tripTierCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: '#F7F7F7',
+    borderRadius: 18, padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
+  },
+  tripTierIcon: {
+    width: 52, height: 52, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  tripTierInfo: { flex: 1 },
+  tripTierName: { fontSize: 16, fontWeight: '700', color: '#161616', marginBottom: 3 },
+  tripTierMeta: { fontSize: 13, color: 'rgba(0,0,0,0.5)' },
+  tripTierBadge: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20,
+  },
+  tripTierBadgeText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
+  tripsComingSoon: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 20, paddingVertical: 16,
+    borderRadius: 14, borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    borderStyle: 'dashed',
+  },
+  tripsComingSoonText: { color: 'rgba(0,0,0,0.3)', fontSize: 13, fontWeight: '600' },
 });

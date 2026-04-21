@@ -4,6 +4,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Platform, View } from 'react-native';
+import { ProfileProvider } from '../lib/ProfileContext';
 import { supabase } from '../lib/supabase';
 
 export default function RootLayout() {
@@ -135,5 +136,9 @@ export default function RootLayout() {
     );
   }
 
-  return <Slot />;
+  return (
+    <ProfileProvider>
+      <Slot />
+    </ProfileProvider>
+  );
 }

@@ -1,17 +1,18 @@
 // constants/Colors.ts
 export const Colors = {
   primary: {
-    navy: '#0F2738',
-    navyLight: '#1B3A57',
-    coral: '#FF6B6B',
-    coralLight: '#FF8787',
+    navy: '#1B3A57',
+    navyLight: '#264653',
+    coral: '#E8755A',
+    coralLight: '#F09070',
   },
   secondary: {
-    teal: '#4ECDC4',
+    teal: '#2A9D8F',
     purple: '#9B59B6',
     orange: '#F39C12',
   },
   neutral: {
+    background: '#FFFFFF',
     trailDust: '#F8F9FA',
     white: '#FFFFFF',
     grey: '#6C757D',
@@ -20,20 +21,20 @@ export const Colors = {
     border: '#E9ECEF',
   },
   highlight: {
-    gold: '#FFD93D',
+    gold: '#D4AF37',
     success: '#6BCF7F',
     error: '#FF4757',
     warning: '#FFA502',
   },
   gradient: {
-    sunset: ['#FF6B6B', '#FFD93D'] as const,
-    ocean: ['#4ECDC4', '#556EE6'] as const,
-    dusk: ['#9B59B6', '#FF6B6B'] as const,
-    adventure: ['#0F2738', '#1B3A57'] as const,
+    sunset: ['#E8755A', '#D4AF37'] as const,
+    ocean: ['#2A9D8F', '#264653'] as const,
+    dusk: ['#9B59B6', '#E8755A'] as const,
+    adventure: ['#1B3A57', '#264653'] as const,
   },
   shadow: {
-    light: 'rgba(0, 0, 0, 0.08)',
-    medium: 'rgba(0, 0, 0, 0.12)',
-    heavy: 'rgba(0, 0, 0, 0.16)',
+    light: 'rgba(0, 0, 0, 0.06)',
+    medium: 'rgba(0, 0, 0, 0.10)',
+    heavy: 'rgba(0, 0, 0, 0.15)',
   },
 };

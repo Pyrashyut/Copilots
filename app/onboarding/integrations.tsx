@@ -49,7 +49,7 @@ export default function IntegrationsOnboarding() {
           <View style={s.progressTrack}>
             <View style={[s.progressFill, { width: '75%' }]} />
           </View>
-          <Text style={s.stepLabel}>Step 3 of 4</Text>
+          <Text style={s.stepLabel}>Step 3 of 4 — Optional</Text>
         </View>
 
         {/* Back */}
@@ -134,6 +134,6 @@ const s = StyleSheet.create({
   toggleOn: { backgroundColor: ACCENT },
   skip: { fontSize: 13, color: '#CCC', textAlign: 'center', marginTop: 4 },
   footer: { padding: 24, paddingTop: 8 },
-  cta: { backgroundColor: '#161616', padding: 18, borderRadius: 30, alignItems: 'center' },
+  cta: { backgroundColor: ACCENT, padding: 18, borderRadius: 30, alignItems: 'center' },
   ctaText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
 });

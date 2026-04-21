@@ -114,7 +114,7 @@ export default function PersonalityScreen() {
 
       if (error) throw error;
 
-      router.replace('/(tabs)');
+      router.push('/onboarding/integrations');
     } catch (e: any) {
       Alert.alert('Save failed', e.message);
     } finally {
@@ -125,11 +125,7 @@ export default function PersonalityScreen() {
   const count = selected.size;
 
   return (
-    <LinearGradient
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.gradient}
-    >
+    <View style={styles.gradient}>
       <View style={styles.bgDecoration1} />
       <View style={styles.bgDecoration2} />
 
@@ -140,7 +136,7 @@ export default function PersonalityScreen() {
       >
         <View style={styles.headerSection}>
           <View style={styles.stepIndicator}>
-            <Text style={styles.stepText}>Almost there</Text>
+            <Text style={styles.stepText}>Step 2 of 3</Text>
           </View>
           <Text style={styles.header}>Your Travel Personality</Text>
           <Text style={styles.subHeader}>
@@ -163,7 +159,7 @@ export default function PersonalityScreen() {
         {TAG_CATEGORIES.map(cat => (
           <View key={cat.label} style={styles.category}>
             <View style={styles.catHeader}>
-              <Ionicons name={cat.icon as any} size={16} color="rgba(255,255,255,0.8)" />
+              <Ionicons name={cat.icon as any} size={16} color="#AAAAAA" />
               <Text style={styles.catLabel}>{cat.label}</Text>
             </View>
             <View style={styles.tagWrap}>
@@ -181,7 +177,7 @@ export default function PersonalityScreen() {
                       {tag.label}
                     </Text>
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={14} color={Colors.primary.navy} />
+                      <Ionicons name="checkmark-circle" size={14} color="#FFF" />
                     )}
                   </TouchableOpacity>
                 );
@@ -208,7 +204,7 @@ export default function PersonalityScreen() {
             ) : (
               <>
                 <Text style={styles.buttonText}>
-                  {count < MIN_TAGS ? `Select ${MIN_TAGS - count} more` : "Let's Go!"}
+                  {count < MIN_TAGS ? `Select ${MIN_TAGS - count} more` : 'Next: Experience Matrix'}
                 </Text>
                 {count >= MIN_TAGS && (
                   <Ionicons name="arrow-forward" size={20} color={Colors.neutral.white} />
@@ -220,56 +216,57 @@ export default function PersonalityScreen() {
 
         <TouchableOpacity
           style={styles.skipButton}
-          onPress={() => router.replace('/(tabs)')}
+          onPress={() => router.push('/onboarding/integrations')}
         >
           <Text style={styles.skipText}>Skip for now</Text>
         </TouchableOpacity>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
+const CORAL = '#E8755A';
+
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
+  gradient: { flex: 1, backgroundColor: '#FEFEFE' },
   container: { flex: 1 },
 
   bgDecoration1: {
     position: 'absolute', top: -100, right: -100,
     width: 300, height: 300, borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+    backgroundColor: 'rgba(232,117,90,0.07)',
   },
   bgDecoration2: {
     position: 'absolute', bottom: 100, left: -150,
     width: 350, height: 350, borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+    backgroundColor: 'rgba(255,145,0,0.05)',
   },
 
   content: { padding: 24, paddingTop: 70, paddingBottom: 40 },
 
   headerSection: { marginBottom: 24 },
   stepIndicator: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(232,117,90,0.12)',
     alignSelf: 'flex-start',
     paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 16, marginBottom: 16,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
   },
-  stepText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '700' },
-  header: { fontSize: 30, fontWeight: '800', color: Colors.neutral.white, marginBottom: 8 },
-  subHeader: { fontSize: 15, color: 'rgba(255,255,255,0.8)', lineHeight: 22 },
+  stepText: { color: CORAL, fontSize: 12, fontWeight: '700' },
+  header: { fontSize: 30, fontWeight: '800', color: '#161616', marginBottom: 8 },
+  subHeader: { fontSize: 15, color: '#888', lineHeight: 22 },
 
   progressWrap: { marginBottom: 24 },
   progressTrack: {
-    height: 6, backgroundColor: 'rgba(255,255,255,0.2)',
+    height: 6, backgroundColor: 'rgba(0,0,0,0.08)',
     borderRadius: 3, overflow: 'hidden', marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.highlight.gold,
+    backgroundColor: '#D8AF45',
     borderRadius: 3,
   },
-  progressLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
-  progressOk: { color: Colors.highlight.success, fontWeight: '700' },
+  progressLabel: { color: '#999', fontSize: 13 },
+  progressOk: { color: '#3B9F16', fontWeight: '700' },
 
   category: { marginBottom: 24 },
   catHeader: {
@@ -278,43 +275,43 @@ const styles = StyleSheet.create({
   },
   catLabel: {
     fontSize: 13, fontWeight: '700',
-    color: 'rgba(255,255,255,0.8)',
+    color: '#AAAAAA',
     textTransform: 'uppercase', letterSpacing: 0.8,
   },
   tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tag: {
     flexDirection: 'row', alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#F7F7F7',
     paddingHorizontal: 14, paddingVertical: 10,
     borderRadius: 24,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.08)',
   },
   tagSelected: {
-    backgroundColor: Colors.neutral.white,
-    borderColor: Colors.neutral.white,
+    backgroundColor: CORAL,
+    borderColor: CORAL,
   },
   tagEmoji: { fontSize: 15 },
   tagLabel: {
     fontSize: 14, fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
+    color: '#555',
   },
-  tagLabelSelected: { color: Colors.primary.navy },
+  tagLabelSelected: { color: '#FFF' },
 
   button: {
     borderRadius: 14, overflow: 'hidden',
     marginTop: 8, marginBottom: 12,
-    shadowColor: Colors.shadow.medium,
+    shadowColor: CORAL,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2, shadowRadius: 8, elevation: 4,
+    shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
   buttonDisabled: { opacity: 0.7 },
   buttonGradient: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', paddingVertical: 18, gap: 8,
   },
-  buttonText: { color: Colors.neutral.white, fontWeight: '700', fontSize: 17 },
+  buttonText: { color: '#FFF', fontWeight: '700', fontSize: 17 },
 
   skipButton: { alignItems: 'center', paddingVertical: 12 },
-  skipText: { color: 'rgba(255,255,255,0.5)', fontSize: 14 },
+  skipText: { color: '#BBB', fontSize: 14 },
 });

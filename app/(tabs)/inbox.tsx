@@ -51,6 +51,49 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
+const DEMO_NOTIFS: Notif[] = [
+  {
+    id: 'demo_1',
+    type: 'new_match',
+    title: 'New match!',
+    body: 'You and Sofia liked each other.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
+    read: false,
+  },
+  {
+    id: 'demo_2',
+    type: 'trip_invite',
+    title: 'Trip invitation',
+    body: 'Marcus invited you on a Weekend Escape.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    read: false,
+  },
+  {
+    id: 'demo_3',
+    type: 'trip_accepted',
+    title: 'Invitation accepted!',
+    body: 'Lena accepted your trip. Chat is now open.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+    read: false,
+  },
+  {
+    id: 'demo_4',
+    type: 'chat_active',
+    title: 'Chat is open',
+    body: 'Your chat with Kai is active. Don\'t let the timer run out!',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+    read: true,
+  },
+  {
+    id: 'demo_5',
+    type: 'trip_cancelled',
+    title: 'Trip cancelled',
+    body: 'The trip with Alex was cancelled.',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    read: true,
+  },
+];
+
 export default function InboxScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -274,18 +317,7 @@ export default function InboxScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {notifs.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="notifications-outline" size={56} color={Colors.primary.navy} />
-            </View>
-            <Text style={styles.emptyTitle}>Nothing yet</Text>
-            <Text style={styles.emptyText}>
-              Matches and trip updates will appear here.
-            </Text>
-          </View>
-        ) : (
-          notifs.map(n => {
+        {(notifs.length > 0 ? notifs : DEMO_NOTIFS).map(n => {
             const isRead = n.read || readIds.has(n.id);
             const iconMeta = TYPE_ICON[n.type];
             return (
@@ -326,8 +358,7 @@ export default function InboxScreen() {
                 )}
               </TouchableOpacity>
             );
-          })
-        )}
+          })}
       </ScrollView>
     </LinearGradient>
   );

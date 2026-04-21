@@ -169,29 +169,15 @@ export default function TripsScreen() {
 
   if (loading) {
     return (
-      <LinearGradient
-        colors={[Colors.primary.navy, Colors.primary.navyLight, Colors.neutral.trailDust]}
-        style={styles.center}
-      >
-        <Image
-          source={require('../../assets/images/logo.png')}
-          style={styles.logoLoader}
-          resizeMode="contain"
-        />
-        <ActivityIndicator size="large" color={Colors.highlight.gold} />
-      </LinearGradient>
+      <View style={styles.center}>
+        <Image source={require('../../assets/images/logo.png')} style={styles.logoLoader} resizeMode="contain" />
+        <ActivityIndicator size="large" color="#E8755A" />
+      </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
-      <View style={styles.bgDecoration1} />
-      <View style={styles.bgDecoration2} />
-
+    <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Trips</Text>
@@ -204,13 +190,7 @@ export default function TripsScreen() {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.highlight.gold}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#E8755A" />}
         showsVerticalScrollIndicator={false}
       >
         {activeTrips.length > 0 && (
@@ -244,135 +224,94 @@ export default function TripsScreen() {
         {activeTrips.length === 0 && pastTrips.length === 0 && (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconCircle}>
-              <Ionicons name="airplane-outline" size={56} color={Colors.primary.navy} />
+              <Ionicons name="airplane-outline" size={56} color="#E8755A" />
             </View>
             <Text style={styles.emptyTitle}>No Trips Yet</Text>
             <Text style={styles.emptyText}>
               Match with someone and send a trip invitation to get started!
             </Text>
-            <TouchableOpacity
-              style={styles.discoverBtn}
-              onPress={() => router.push('/(tabs)')}
-            >
+            <TouchableOpacity style={styles.discoverBtn} onPress={() => router.push('/(tabs)')}>
               <Text style={styles.discoverBtnText}>Discover People</Text>
             </TouchableOpacity>
           </View>
         )}
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  logoLoader: { width: 200, height: 80, marginBottom: 20 },
+const CORAL = '#E8755A';
 
-  bgDecoration1: {
-    position: 'absolute', top: -100, right: -100,
-    width: 300, height: 300, borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
-  },
-  bgDecoration2: {
-    position: 'absolute', bottom: 100, left: -150,
-    width: 350, height: 350, borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
-  },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  logoLoader: { width: 160, height: 60, marginBottom: 20 },
 
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24, paddingTop: 70, paddingBottom: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 24, paddingTop: 60, paddingBottom: 20,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: Colors.neutral.white, marginBottom: 4 },
-  headerSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: '#161616', marginBottom: 2 },
+  headerSubtitle: { fontSize: 14, color: '#999', fontWeight: '500' },
   totalBadge: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
     width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(232,117,90,0.12)',
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
   },
-  totalText: { color: Colors.neutral.white, fontSize: 16, fontWeight: '800' },
+  totalText: { color: CORAL, fontSize: 16, fontWeight: '800' },
 
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 16 },
 
   section: { marginBottom: 24 },
-  sectionHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 12,
-  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: {
-    fontSize: 14, fontWeight: '700',
-    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13, fontWeight: '700', color: '#999',
     textTransform: 'uppercase', letterSpacing: 1,
   },
   countBadge: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(232,117,90,0.12)',
     paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
   },
-  countText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '700' },
+  countText: { color: CORAL, fontSize: 12, fontWeight: '700' },
 
   tripCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.neutral.white,
-    borderRadius: 20, marginBottom: 12,
-    overflow: 'hidden',
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15, shadowRadius: 12, elevation: 6,
+    flexDirection: 'row', backgroundColor: '#FFF',
+    borderRadius: 20, marginBottom: 12, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08, shadowRadius: 10, elevation: 4,
   },
-  tripCardPast: { opacity: 0.7 },
+  tripCardPast: { opacity: 0.65 },
   tierBadge: { width: 56, justifyContent: 'center', alignItems: 'center' },
   tripCardBody: { flex: 1, padding: 14 },
-  tripCardTop: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
+  tripCardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   tripCardInfo: { flex: 1 },
-  tripTierLabel: { fontSize: 16, fontWeight: '700', color: Colors.primary.navy, marginBottom: 2 },
-  tripPartnerName: { fontSize: 13, color: Colors.neutral.grey, marginBottom: 2 },
-  tripDate: { fontSize: 12, color: Colors.neutral.greyLight },
-  partnerAvatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.neutral.border, marginLeft: 10,
-  },
+  tripTierLabel: { fontSize: 16, fontWeight: '700', color: '#161616', marginBottom: 2 },
+  tripPartnerName: { fontSize: 13, color: '#888', marginBottom: 2 },
+  tripDate: { fontSize: 12, color: '#BBB' },
+  partnerAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F0F0F0', marginLeft: 10 },
 
-  tripCardFooter: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginTop: 10,
-  },
-  statusPill: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 20, gap: 6,
-  },
+  tripCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, gap: 6 },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusLabel: { fontSize: 12, fontWeight: '600' },
   openChatBtn: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.primary.navy,
+    backgroundColor: CORAL,
     paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 20, gap: 5,
   },
-  openChatText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '700' },
+  openChatText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
 
   emptyState: { paddingVertical: 80, alignItems: 'center', paddingHorizontal: 40 },
   emptyIconCircle: {
-    width: 120, height: 120, borderRadius: 60,
-    backgroundColor: Colors.neutral.white,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 24,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15, shadowRadius: 12, elevation: 4,
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: 'rgba(232,117,90,0.1)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 20,
   },
-  emptyTitle: { fontSize: 26, fontWeight: '800', color: Colors.neutral.white, marginBottom: 12 },
-  emptyText: {
-    color: 'rgba(255,255,255,0.7)', fontSize: 16,
-    textAlign: 'center', lineHeight: 24, marginBottom: 24,
-  },
-  discoverBtn: {
-    backgroundColor: Colors.neutral.white,
-    paddingHorizontal: 24, paddingVertical: 14, borderRadius: 16,
-  },
-  discoverBtnText: { color: Colors.primary.navy, fontWeight: '700', fontSize: 15 },
+  emptyTitle: { fontSize: 24, fontWeight: '800', color: '#161616', marginBottom: 10 },
+  emptyText: { color: '#999', fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  discoverBtn: { backgroundColor: CORAL, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 30 },
+  discoverBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
 });

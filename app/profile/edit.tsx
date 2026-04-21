@@ -9,6 +9,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,6 +26,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
+
+const CORAL = '#E8755A';
 
 // ─── Constants ────────────────────────────────────────────────────────
 const TRAVEL_TRAITS = [
@@ -258,30 +261,26 @@ export default function EditProfileScreen() {
         <Ionicons
           name={expanded ? 'chevron-down' : 'chevron-forward'}
           size={24}
-          color={Colors.neutral.white}
+          color="#E8755A"
         />
         <View>
           <Text style={styles.sectionHeader}>{title}</Text>
           <Text style={styles.collapsibleSubtext}>{subtitle}</Text>
         </View>
       </View>
-      <Ionicons name={icon as any} size={20} color={Colors.neutral.white} />
+      <Ionicons name={icon as any} size={20} color="#E8755A" />
     </TouchableOpacity>
   );
 
   return (
-    <LinearGradient
-      colors={[Colors.primary.navy, Colors.primary.navyLight, '#2A4A5E', Colors.neutral.trailDust]}
-      locations={[0, 0.3, 0.6, 1]}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <View style={styles.bgDecoration1} />
       <View style={styles.bgDecoration2} />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={Colors.neutral.white} />
+            <Ionicons name="arrow-back" size={24} color="#161616" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Edit Profile</Text>
           <View style={{ width: 40 }} />
@@ -398,7 +397,7 @@ export default function EditProfileScreen() {
                     activeOpacity={0.8}
                   >
                     <View style={[styles.tierIcon, selected && styles.tierIconSelected]}>
-                      <Ionicons name={tier.icon as any} size={18} color={selected ? Colors.neutral.white : Colors.primary.navy} />
+                      <Ionicons name={tier.icon as any} size={18} color={selected ? '#FFF' : CORAL} />
                     </View>
                     <View style={styles.tierInfo}>
                       <Text style={[styles.tierLabel, selected && styles.tierLabelSelected]}>{tier.label}</Text>
@@ -559,123 +558,126 @@ export default function EditProfileScreen() {
           </View>
         </Modal>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#FEFEFE' },
   bgDecoration1: {
     position: 'absolute', top: -100, right: -100,
     width: 300, height: 300, borderRadius: 150,
-    backgroundColor: 'rgba(78, 205, 196, 0.08)',
+    backgroundColor: 'rgba(232,117,90,0.06)',
   },
   bgDecoration2: {
     position: 'absolute', bottom: 100, left: -150,
     width: 350, height: 350, borderRadius: 175,
-    backgroundColor: 'rgba(255, 217, 61, 0.06)',
+    backgroundColor: 'rgba(255,145,0,0.05)',
   },
   header: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   backButton: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(0,0,0,0.05)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.neutral.white },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#161616' },
   scrollContent: { padding: 24, paddingBottom: 40 },
 
   section: { marginBottom: 20 },
-  sectionHeader: { fontSize: 20, fontWeight: '800', color: Colors.neutral.white, marginBottom: 4 },
-  sectionSubtext: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: 16 },
-  label: { fontSize: 16, fontWeight: '700', color: Colors.neutral.white, marginBottom: 12 },
+  sectionHeader: { fontSize: 17, fontWeight: '800', color: '#161616', marginBottom: 4 },
+  sectionSubtext: { fontSize: 14, color: '#999', marginBottom: 16 },
+  label: { fontSize: 15, fontWeight: '700', color: '#161616', marginBottom: 12 },
   labelRow: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 12,
   },
   countBadge: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(232,117,90,0.12)',
     paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 12,
   },
-  countText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '700' },
+  countText: { color: CORAL, fontSize: 12, fontWeight: '700' },
 
   photoScroll: { marginBottom: 12 },
   imageWrapper: { position: 'relative', marginRight: 12 },
-  thumb: { width: 120, height: 160, borderRadius: 12, backgroundColor: Colors.neutral.border },
+  thumb: { width: 120, height: 160, borderRadius: 12, backgroundColor: '#F0F0F0' },
   removeBtn: {
     position: 'absolute', top: -6, right: -6,
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: Colors.highlight.error,
+    backgroundColor: '#E03724',
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: Colors.neutral.white,
+    borderWidth: 2, borderColor: '#FFF',
   },
   primaryBadge: {
     position: 'absolute', bottom: 8, left: 8,
-    backgroundColor: Colors.highlight.gold,
+    backgroundColor: '#D8AF45',
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
   },
-  primaryText: { color: Colors.primary.navy, fontSize: 10, fontWeight: '700' },
+  primaryText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
   moveLeftBtn: {
     position: 'absolute', bottom: 8, right: 8,
     width: 24, height: 24, borderRadius: 12,
-    backgroundColor: Colors.primary.navy,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', alignItems: 'center',
   },
   addBtn: {
     width: 120, height: 160, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(232,117,90,0.08)',
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)', borderStyle: 'dashed',
+    borderWidth: 2, borderColor: CORAL, borderStyle: 'dashed',
   },
-  addText: { color: Colors.neutral.white, fontSize: 12, fontWeight: '600', marginTop: 4 },
-  helpText: { fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 20 },
+  addText: { color: CORAL, fontSize: 12, fontWeight: '600', marginTop: 4 },
+  helpText: { fontSize: 13, color: '#999', lineHeight: 20 },
 
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.neutral.white, borderRadius: 12, paddingHorizontal: 16,
-    shadowColor: Colors.shadow.heavy,
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 4,
+    backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 16,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
   },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, paddingVertical: 16, fontSize: 16, color: Colors.primary.navy },
+  input: { flex: 1, paddingVertical: 16, fontSize: 16, color: '#161616' },
   textAreaWrapper: { alignItems: 'flex-start', paddingVertical: 8 },
   textArea: { height: 100, textAlignVertical: 'top' },
 
   // Collapsible
   collapsibleHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: '#FFF',
     padding: 16, borderRadius: 12, marginTop: 24, marginBottom: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1, borderColor: 'rgba(232,117,90,0.2)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
   collapsibleHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  collapsibleSubtext: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  collapsibleSubtext: { fontSize: 12, color: '#999', marginTop: 2 },
   collapsibleContent: { marginBottom: 16 },
 
   // Trip tiers
   tierRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.neutral.white,
+    backgroundColor: '#FFF',
     borderRadius: 14, padding: 14, marginBottom: 10,
-    borderWidth: 2, borderColor: Colors.neutral.border,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
+    borderWidth: 2, borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
-  tierRowSelected: { backgroundColor: Colors.primary.navy, borderColor: Colors.primary.navy },
+  tierRowSelected: { backgroundColor: CORAL, borderColor: CORAL },
   tierIcon: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.neutral.trailDust,
+    backgroundColor: 'rgba(232,117,90,0.1)',
     justifyContent: 'center', alignItems: 'center',
   },
-  tierIconSelected: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  tierIconSelected: { backgroundColor: 'rgba(255,255,255,0.25)' },
   tierInfo: { flex: 1 },
-  tierLabel: { fontSize: 15, fontWeight: '700', color: Colors.primary.navy },
-  tierLabelSelected: { color: Colors.neutral.white },
-  tierDesc: { fontSize: 12, color: Colors.neutral.grey, marginTop: 2 },
-  tierDescSelected: { color: 'rgba(255,255,255,0.7)' },
+  tierLabel: { fontSize: 15, fontWeight: '700', color: '#161616' },
+  tierLabelSelected: { color: '#FFF' },
+  tierDesc: { fontSize: 12, color: '#999', marginTop: 2 },
+  tierDescSelected: { color: 'rgba(255,255,255,0.8)' },
 
   // Availability
   availabilityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -683,54 +685,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 10,
     borderRadius: 24, borderWidth: 1.5,
-    backgroundColor: Colors.neutral.white,
-    borderColor: Colors.neutral.border,
+    backgroundColor: '#FFF',
+    borderColor: 'rgba(0,0,0,0.1)',
   },
-  availabilityChipSelected: { backgroundColor: Colors.primary.navy, borderColor: Colors.primary.navy },
-  availabilityChipText: { fontSize: 13, fontWeight: '600', color: Colors.primary.navy },
-  availabilityChipTextSelected: { color: Colors.neutral.white },
+  availabilityChipSelected: { backgroundColor: CORAL, borderColor: CORAL },
+  availabilityChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  availabilityChipTextSelected: { color: '#FFF' },
 
   // Travel traits
   traitRow: {
-    flexDirection: 'row', backgroundColor: Colors.neutral.white,
+    flexDirection: 'row', backgroundColor: '#FFF',
     borderRadius: 50, marginBottom: 12, height: 56,
     alignItems: 'center', padding: 4,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.07)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
   traitOption: { flex: 1, height: '100%', justifyContent: 'center', alignItems: 'center', borderRadius: 46 },
   traitDivider: { width: 1, height: '60%', backgroundColor: '#eee' },
-  traitText: { color: Colors.neutral.grey, fontWeight: '600', fontSize: 14 },
-  selectedLeft:  { backgroundColor: Colors.primary.navy },
-  selectedRight: { backgroundColor: Colors.primary.navy },
-  selectedText:  { color: Colors.neutral.white },
+  traitText: { color: '#999', fontWeight: '600', fontSize: 14 },
+  selectedLeft:  { backgroundColor: CORAL },
+  selectedRight: { backgroundColor: CORAL },
+  selectedText:  { color: '#FFF' },
 
   // Experience matrix
   experienceCard: {
-    backgroundColor: Colors.neutral.white, borderRadius: 12,
+    backgroundColor: '#FFF', borderRadius: 12,
     padding: 16, marginBottom: 12,
-    shadowColor: Colors.shadow.light,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
-  experienceTitle: { fontSize: 16, fontWeight: '600', color: Colors.primary.navy, marginBottom: 12 },
+  experienceTitle: { fontSize: 16, fontWeight: '600', color: '#161616', marginBottom: 12 },
   experienceOptions: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   experienceChip: {
     flex: 1, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 20,
-    backgroundColor: Colors.neutral.trailDust,
-    borderWidth: 1, borderColor: Colors.neutral.border, alignItems: 'center',
+    backgroundColor: '#F7F7F7',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.07)', alignItems: 'center',
   },
-  selectedExperienceChip: { backgroundColor: Colors.primary.navy, borderColor: Colors.primary.navy },
-  experienceChipText: { fontSize: 11, color: Colors.neutral.grey, fontWeight: '600' },
-  selectedExperienceChipText: { color: Colors.neutral.white, fontWeight: '700' },
+  selectedExperienceChip: { backgroundColor: CORAL, borderColor: CORAL },
+  experienceChipText: { fontSize: 11, color: '#888', fontWeight: '600' },
+  selectedExperienceChipText: { color: '#FFF', fontWeight: '700' },
 
   // Save
   saveButton: {
     borderRadius: 12, overflow: 'hidden', marginTop: 24,
-    shadowColor: Colors.shadow.medium,
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4,
+    shadowColor: CORAL,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   saveGradient: { paddingVertical: 18, alignItems: 'center' },
-  saveText: { color: Colors.neutral.white, fontWeight: '700', fontSize: 17 },
+  saveText: { color: '#FFF', fontWeight: '700', fontSize: 17 },
 
   // Image modal
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' },

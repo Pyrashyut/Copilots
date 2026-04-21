@@ -51,6 +51,7 @@ export default function ViewProfileScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
+  const [stats, setStats] = useState({ trips: 0, likes: 0 });
   const [loading, setLoading] = useState(true);
   const userId = params.userId as string;
 
@@ -60,13 +61,22 @@ export default function ViewProfileScreen() {
 
   const fetchUserProfile = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      if (error) throw error;
-      setProfile(data);
+      const [profileRes, tripsRes, likesRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase
+          .from('bookings')
+          .select('id', { count: 'exact', head: true })
+          .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+          .eq('status', 'completed'),
+        supabase
+          .from('swipes')
+          .select('id', { count: 'exact', head: true })
+          .eq('likee_id', userId)
+          .eq('is_like', true),
+      ]);
+      if (profileRes.error) throw profileRes.error;
+      setProfile(profileRes.data);
+      setStats({ trips: tripsRes.count ?? 0, likes: likesRes.count ?? 0 });
     } catch (err) {
       console.error(err);
     } finally {
@@ -107,35 +117,44 @@ export default function ViewProfileScreen() {
           <View style={styles.headerSection}>
             <MediaAvatar uri={profile?.photos?.[0]} />
             <View style={styles.nameRow}>
-              <Text style={styles.nameText}>{profile?.username || 'Explorer'}, {profile?.age || '24'}</Text>
-              <Ionicons name="checkmark-circle" size={22} color="#FF9100" />
+              <Text style={styles.nameText}>{profile?.username || 'Explorer'}{profile?.age ? `, ${profile.age}` : ''}</Text>
+              <Ionicons name="checkmark-circle" size={20} color="#FF9100" style={{ marginLeft: 4 }} />
+              {(profile?.location_city || profile?.location) && (
+                <>
+                  <Text style={{ fontSize: 15, color: '#AAA', marginLeft: 4 }}> · </Text>
+                  <Text style={styles.locationText}>
+                    {profile.location_city
+                      ? `${profile.location_city}${profile.location_country ? ', ' + profile.location_country : ''}`
+                      : profile.location}
+                  </Text>
+                </>
+              )}
             </View>
-            <Text style={styles.locationText}>{profile?.location || 'London, UK'}</Text>
-            <Text style={styles.bioText}>{profile?.bio || "Adventurer at heart. Looking for someone to explore hidden gems with."}</Text>
+            {profile?.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
           </View>
 
           {/* Stats Bar */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <View style={styles.statHeading}>
-                <Ionicons name="star" size={16} color="#FF9100" />
-                <Text style={styles.statValue}>4.9</Text>
+                <Ionicons name="star" size={16} color="#E8755A" />
+                <Text style={styles.statValue}>5.0</Text>
               </View>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
               <View style={styles.statHeading}>
-                <Ionicons name="airplane" size={16} color="#FF9100" />
-                <Text style={styles.statValue}>8</Text>
+                <Ionicons name="airplane" size={16} color="#E8755A" />
+                <Text style={styles.statValue}>{stats.trips}</Text>
               </View>
               <Text style={styles.statLabel}>Trips</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
               <View style={styles.statHeading}>
-                <Ionicons name="heart" size={16} color="#FF9100" />
-                <Text style={styles.statValue}>128</Text>
+                <Ionicons name="heart" size={16} color="#E8755A" />
+                <Text style={styles.statValue}>{stats.likes}</Text>
               </View>
               <Text style={styles.statLabel}>Likes</Text>
             </View>
@@ -167,40 +186,23 @@ export default function ViewProfileScreen() {
           {/* Experience Matrix */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Experience Matrix</Text>
-            <View style={styles.matrixRow}>
-              {/* Loved */}
-              <View style={[styles.matrixCard, styles.matrixLoved]}>
-                <View style={[styles.matrixIconBox, { backgroundColor: '#3B9F16' }]}>
-                  <Ionicons name="thumbs-up" size={14} color="#FFF" />
+            {[
+              { key: 'loved', label: 'Done & Loved', color: '#3B9F16', bg: 'rgba(59,159,22,0.08)',  iconBg: '#3B9F16', icon: 'thumbs-up',   items: (profile?.preferences?.loved ?? []) as string[] },
+              { key: 'try',   label: 'Want to Try',  color: '#C89B00', bg: 'rgba(238,199,46,0.10)', iconBg: '#EEC72E', icon: 'bookmark',    items: (profile?.preferences?.try   ?? []) as string[] },
+              { key: 'nope',  label: 'Not For Me',   color: '#C0392B', bg: 'rgba(224,55,36,0.08)',  iconBg: '#E03724', icon: 'thumbs-down', items: (profile?.preferences?.dislike ?? []) as string[] },
+            ].map(cat => cat.items.length > 0 && (
+              <View key={cat.key} style={[styles.matrixRow, { backgroundColor: cat.bg }]}>
+                <View style={[styles.matrixIconBox, { backgroundColor: cat.iconBg }]}>
+                  <Ionicons name={cat.icon as any} size={16} color="#FFF" />
                 </View>
                 <View style={styles.matrixInfo}>
-                  <Text style={styles.matrixLabel}>Done & Loved</Text>
-                  <Text style={styles.matrixItems}>🧗 Climbing • 🍕 Food Tours</Text>
+                  <Text style={styles.matrixLabel}>{cat.label}</Text>
+                  <Text style={[styles.matrixItems, { color: cat.color }]}>
+                    {cat.items.slice(0, 4).join(' · ')}
+                  </Text>
                 </View>
               </View>
-
-              {/* Try */}
-              <View style={[styles.matrixCard, styles.matrixTry]}>
-                <View style={[styles.matrixIconBox, { backgroundColor: '#EEC72E' }]}>
-                  <Ionicons name="list" size={14} color="#000" />
-                </View>
-                <View style={styles.matrixInfo}>
-                  <Text style={styles.matrixLabel}>Want to Try</Text>
-                  <Text style={styles.matrixItems}>🛶 Kayaking • 🌌 Stargazing</Text>
-                </View>
-              </View>
-
-              {/* Dislike */}
-              <View style={[styles.matrixCard, styles.matrixDislike]}>
-                <View style={[styles.matrixIconBox, { backgroundColor: '#E03724' }]}>
-                  <Ionicons name="thumbs-down" size={14} color="#FFF" />
-                </View>
-                <View style={styles.matrixInfo}>
-                  <Text style={styles.matrixLabel}>Not For Me</Text>
-                  <Text style={styles.matrixItems}>🏨 All-Inclusive Resorts</Text>
-                </View>
-              </View>
-            </View>
+            ))}
           </View>
 
           <View style={{ height: 120 }} />
@@ -256,9 +258,9 @@ const styles = StyleSheet.create({
   avatarContainer: { width: 100, height: 100, borderRadius: 50, overflow: 'hidden', backgroundColor: '#F2F2F2' },
   avatar: { width: '100%', height: '100%' },
 
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   nameText: { fontSize: 26, fontWeight: '700', color: '#000' },
-  locationText: { fontSize: 15, color: '#000', opacity: 0.6 },
+  locationText: { fontSize: 14, color: '#888' },
   bioText: { fontSize: 15, color: '#000', opacity: 0.8, textAlign: 'center', paddingHorizontal: 20, lineHeight: 22 },
 
   statsRow: { 
@@ -283,15 +285,17 @@ const styles = StyleSheet.create({
   imageThumb: { ...StyleSheet.absoluteFillObject },
   imageOverlay: { ...StyleSheet.absoluteFillObject },
   
-  matrixRow: { gap: 12 },
-  matrixCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.03)' },
-  matrixLoved: { backgroundColor: 'rgba(59, 159, 22, 0.08)' },
-  matrixTry: { backgroundColor: 'rgba(238, 199, 46, 0.08)' },
-  matrixDislike: { backgroundColor: 'rgba(224, 55, 36, 0.08)' },
-  matrixIconBox: { width: 34, height: 34, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  matrixInfo: { marginLeft: 15, flex: 1 },
-  matrixLabel: { fontSize: 11, color: '#000', opacity: 0.5, marginBottom: 2, textTransform: 'uppercase', fontWeight: '600' },
-  matrixItems: { fontSize: 14, fontWeight: '700', color: '#161616' },
+  matrixRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 14, padding: 14, marginBottom: 10,
+  },
+  matrixIconBox: { width: 36, height: 36, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  matrixInfo: { flex: 1 },
+  matrixLabel: {
+    fontSize: 11, color: '#999', marginBottom: 3,
+    textTransform: 'uppercase', fontWeight: '600', letterSpacing: 0.5,
+  },
+  matrixItems: { fontSize: 14, fontWeight: '700' },
 
   footerActions: { 
     position: 'absolute', 
